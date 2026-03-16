@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Chemistry Platform{% endblock %}</title>
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#10b981', // Emerald 500
+                        secondary: '#3b82f6', // Blue 500
+                        dark: {
+                            900: '#0f172a', // Slate 900
+                            800: '#1e293b', // Slate 800
+                            700: '#334155', // Slate 700
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-dark-900 text-slate-200 font-sans antialiased min-h-screen flex flex-col transition-colors duration-300">
+    
+    <!-- Navigation -->
+    <nav class="bg-dark-800/80 backdrop-blur-md border-b border-dark-700 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <div class="flex-shrink-0 flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/30">
+                        <span class="text-white font-bold text-lg">C</span>
+                    </div>
+                    <span class="font-bold text-xl text-white tracking-tight">ChemLearn</span>
+                </div>
+                
+                <!-- Desktop Menu -->
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="{% url 'dashboard' %}" class="bg-dark-900 text-white px-3 py-2 rounded-md text-sm font-medium hover:text-primary transition-colors">Dashboard</a>
+                        <a href="{% url 'index' %}" class="text-slate-300 hover:bg-dark-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors">Periodic Table</a>
+                        <a href="{% url 'simulations' %}" class="text-slate-300 hover:bg-dark-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors">Simulations</a>
+                        <a href="{% url 'atom_viewer' %}" class="text-slate-300 hover:bg-dark-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors">Atom Viewer</a>
+                        <a href="{% url 'atom_builder' %}" class="text-slate-300 hover:bg-dark-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors border border-primary/30 text-primary">Builder Exercise</a>
+                        <a href="{% url 'learning' %}" class="text-slate-300 hover:bg-dark-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors">Learning</a>
+                    </div>
+
+                </div>
+                
+                <!-- Profile Dropdown (Placeholder) -->
+                <div class="hidden md:block">
+                    <button class="flex items-center space-x-2 relative focus:outline-none">
+                        <img class="h-8 w-8 rounded-full object-cover border-2 border-primary" src="https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff" alt="User Avatar">
+                        <span class="text-sm font-medium text-slate-300">Student</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}
+        {% endblock content %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark-800 border-t border-dark-700 mt-auto">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 text-center text-sm text-slate-400">
+            &copy; 2026 ChemLearn Education Platform. All rights reserved.
+        </div>
+    </footer>
+
+    <!-- Custom JS -->
+    <script src="{% static 'js/app.js' %}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,767 @@
+{% extends 'base.html' %}
+
+{% block title %}Atom Builder Exercise - ChemLearn{% endblock %}
+
+{% block content %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4, .font-outfit { font-family: 'Outfit', sans-serif; }
+    </style>
+
+<div class="flex flex-col lg:flex-row gap-6 w-full fade-in" style="height: calc(100vh - 120px);">
+    <!-- Left Column: Instructions and State -->
+    <div class="w-full lg:w-1/4 flex flex-col h-full">
+        <div class="bg-dark-800/40 backdrop-blur-xl rounded-3xl border border-white/5 p-6 h-full shadow-2xl flex flex-col relative overflow-hidden group">
+            <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50"></div>
+            
+            <div class="relative z-10 flex flex-col h-full">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-black text-white tracking-tight">Atom Laboratory</h2>
+                    <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                    </div>
+                </div>
+            
+                <div id="exercise-loading" class="flex items-center justify-center flex-grow">
+                    <div class="relative w-12 h-12">
+                        <div class="absolute inset-0 border-2 border-primary/20 rounded-full animate-ping"></div>
+                        <div class="absolute inset-0 border-2 border-primary rounded-full border-t-transparent animate-spin"></div>
+                    </div>
+                </div>
+
+                <div id="exercise-content" class="hidden flex-col flex-grow overflow-hidden">
+                    <p class="text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-8 leading-relaxed">Synthesize the quantum structure by distributing electrons across valid orbitals.</p>
+                    
+                    <div class="bg-dark-950/60 backdrop-blur-md border border-white/5 rounded-3xl p-6 flex flex-col items-center justify-center mb-8 relative overflow-hidden group/target">
+                        <div class="absolute inset-0 bg-radial-at-c from-primary/10 via-transparent to-transparent opacity-0 group-hover/target:opacity-100 transition-opacity"></div>
+                        <span class="text-[9px] text-slate-500 uppercase font-black tracking-[0.3em] mb-3 relative z-10">Target Nuclide</span>
+                        <span id="target-name" class="text-3xl font-black text-white text-center mb-1 tracking-tighter relative z-10">...</span>
+                        <div id="target-symbol-chip" class="px-3 py-1 bg-primary/10 border border-primary/20 rounded-lg">
+                            <span class="text-primary font-black text-sm" id="target-symbol">...</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mb-8">
+                        <div class="bg-dark-900/60 rounded-2xl p-4 border border-white/5 text-center group hover:border-primary/30 transition-all">
+                            <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest block mb-2">Required e⁻</span>
+                            <span id="target-electrons" class="text-3xl font-black text-white group-hover:text-primary transition-colors">0</span>
+                        </div>
+                        <div id="placed-container" class="bg-dark-900/60 rounded-2xl p-4 border border-white/5 text-center group transition-all">
+                            <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest block mb-2">Deployed e⁻</span>
+                            <span id="placed-electrons" class="text-3xl font-black text-blue-400">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Spectroscopic Notation Display -->
+                    <div class="bg-dark-900/60 rounded-2xl p-4 border border-white/10 mb-auto relative group overflow-hidden">
+                        <div class="absolute top-0 right-0 p-2 opacity-20">
+                            <span class="text-[8px] font-black text-primary">SPDF</span>
+                        </div>
+                        <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest block mb-3">Quantum State</span>
+                        <div id="spectroscopic-notation" class="font-mono text-sm text-primary font-bold tracking-widest min-h-[1.5rem]">
+                            Awaiting Signal...
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 mt-8">
+                        <button id="check-answer-btn" class="w-full bg-primary text-white font-black py-4 px-6 rounded-2xl shadow-[0_8px_32px_rgba(56,189,248,0.3)] hover:scale-[1.02] active:scale-95 transition-all text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3">
+                            <span>Check Configuration</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </button>
+                        <button id="next-exercise-btn" class="hidden w-full bg-emerald-500 text-white font-black py-4 px-6 rounded-2xl shadow-[0_8px_32px_rgba(16,185,129,0.3)] hover:scale-[1.02] active:scale-95 transition-all text-xs uppercase tracking-[0.2em]">
+                            Sequence Next Nuclide
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle Column: Interactive Canvas -->
+    <div class="w-full lg:w-2/4 flex flex-col h-full">
+        <div class="bg-dark-950/40 backdrop-blur-md rounded-[3rem] border border-white/5 p-8 h-full flex flex-col relative shadow-2xl overflow-hidden group/canvas">
+            
+            <!-- Holographic Grid Background -->
+            <div class="absolute inset-0 opacity-10 pointer-events-none" 
+                 style="background-image: 
+                    linear-gradient(rgba(56, 189, 248, 0.1) 1px, transparent 1px), 
+                    linear-gradient(90deg, rgba(56, 189, 248, 0.1) 1px, transparent 1px); 
+                    background-size: 40px 40px; background-position: center;">
+            </div>
+            <div class="absolute inset-0 bg-radial-at-c from-primary/5 via-transparent to-transparent opacity-0 group-hover/canvas:opacity-100 transition-opacity duration-1000"></div>
+            
+            <!-- Scanline Effect -->
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent blur-sm animate-scanline pointer-events-none"></div>
+
+            <!-- Gamification Overlay -->
+            <div class="absolute top-8 left-8 z-30 flex gap-4">
+                <div class="bg-dark-900/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/5 shadow-2xl flex items-center gap-3">
+                    <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest">Score</span>
+                    <span id="game-score" class="text-lg font-black text-amber-400">0</span>
+                </div>
+                <div class="bg-dark-900/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/5 shadow-2xl flex items-center gap-3">
+                    <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest">Streak</span>
+                    <div class="flex items-center gap-1.5">
+                        <span id="game-streak" class="text-lg font-black text-rose-500">0</span>
+                        <div class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="absolute top-8 right-8 z-30 flex flex-col items-end gap-3">
+                <div class="bg-dark-900/80 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/5 shadow-2xl flex items-center gap-3">
+                    <span id="game-timer" class="text-lg font-mono font-black text-primary">00:00</span>
+                    <div class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></div>
+                </div>
+                <button id="toggle-spin" class="w-10 h-10 flex items-center justify-center bg-dark-900/80 rounded-2xl border border-white/5 text-primary hover:bg-primary hover:text-white shadow-xl transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                </button>
+            </div>
+
+            <!-- Feedback Overlay -->
+            <div id="feedback-overlay" class="absolute inset-0 z-[100] pointer-events-none flex items-center justify-center opacity-0 transition-all duration-500 scale-150">
+                <div id="feedback-card" class="bg-dark-900/90 backdrop-blur-3xl border-2 border-primary/40 px-12 py-8 rounded-[3rem] shadow-[0_0_100px_rgba(56,189,248,0.2)] text-center">
+                    <h3 id="feedback-title" class="text-4xl font-black text-white mb-2 tracking-tighter">Correct!</h3>
+                    <p id="feedback-hint" class="text-slate-400 text-sm max-w-xs leading-relaxed"></p>
+                </div>
+            </div>
+
+            <!-- Difficulty & Drag Source -->
+            <div class="absolute bottom-8 left-8 right-8 z-30 flex justify-between items-end">
+                <div class="bg-dark-900/80 backdrop-blur-xl p-1 rounded-2xl border border-white/5 shadow-2xl flex">
+                    <button class="diff-btn px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all bg-primary text-white" data-level="beginner">Beginner</button>
+                    <button class="diff-btn px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all text-slate-500 hover:text-slate-300" data-level="intermediate">Intermediate</button>
+                    <button class="diff-btn px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all text-slate-500 hover:text-slate-300" data-level="advanced">Advanced</button>
+                </div>
+
+                <div class="flex flex-col items-center gap-3">
+                    <span class="text-[9px] text-slate-500 font-black uppercase tracking-widest">Deployment Cache</span>
+                    <div id="electron-source" class="w-16 h-16 rounded-[2rem] bg-primary/10 border-2 border-primary/30 flex items-center justify-center cursor-grab active:cursor-grabbing hover:scale-110 active:scale-95 transition-all shadow-[0_0_20px_rgba(56,189,248,0.2)] group/source">
+                        <div class="w-6 h-6 rounded-full bg-primary shadow-[0_0_15px_#38bdf8] animate-pulse"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- The Atom Canvas -->
+            <div id="atom-container" class="relative w-full flex-grow flex flex-col items-center justify-center min-h-0">
+                <div id="atom-visualization" class="relative flex items-center justify-center w-[450px] h-[450px] is-spinning">
+                    <!-- Central Nucleus -->
+                    <div id="nucleus" class="absolute z-20 w-16 h-16 rounded-full bg-gradient-to-br from-rose-500 to-purple-600 shadow-[0_0_40px_rgba(225,29,72,0.4)] flex flex-col items-center justify-center text-white transition-all transform group-hover/canvas:scale-110">
+                        <span id="nuc-symbol" class="text-2xl font-black leading-none tracking-tighter">?</span>
+                    </div>
+
+                    <!-- Orbitals injected here via JS -->
+                    <div id="orbitals-layer" class="absolute inset-0 flex items-center justify-center"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: orbital controls -->
+    <div class="w-full lg:w-1/4 flex flex-col h-full">
+        <div class="bg-dark-800/40 backdrop-blur-xl rounded-3xl border border-white/5 p-6 h-full shadow-2xl flex flex-col relative overflow-hidden" id="controls-panel">
+            <div class="flex items-center justify-between mb-8">
+                 <h2 class="text-sm font-black text-slate-300 uppercase tracking-[0.3em]">Shell Configuration</h2>
+                 <div class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b881]"></div>
+            </div>
+            
+            <div class="overflow-y-auto flex-grow custom-scrollbar pr-2 space-y-4" id="shell-controls">
+                <!-- Controls injected via JS -->
+            </div>
+
+            <!-- Rule Reminder Panel -->
+            <div class="mt-8 pt-6 border-t border-white/5">
+                <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Aufbau Guidelines</h3>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <div class="p-3 bg-dark-950/60 rounded-xl border border-white/5">
+                        <div class="text-[8px] text-slate-600 uppercase font-black mb-1">K (n=1)</div>
+                        <div class="text-xs font-bold text-slate-200">Max 2</div>
+                    </div>
+                    <div class="p-3 bg-dark-950/60 rounded-xl border border-white/5">
+                        <div class="text-[8px] text-slate-600 uppercase font-black mb-1">L (n=2)</div>
+                        <div class="text-xs font-bold text-slate-200">Max 8</div>
+                    </div>
+                    <div class="p-3 bg-dark-950/60 rounded-xl border border-white/5">
+                        <div class="text-[8px] text-slate-600 uppercase font-black mb-1">M (n=3)</div>
+                        <div class="text-xs font-bold text-slate-200">Max 18</div>
+                    </div>
+                    <div class="p-3 bg-dark-950/60 rounded-xl border border-white/5">
+                        <div class="text-[8px] text-slate-600 uppercase font-black mb-1">N (n=4)</div>
+                        <div class="text-xs font-bold text-slate-200">Max 32</div>
+                    </div>
+                </div>
+                <div id="rule-reminder" class="bg-primary/5 border border-primary/10 rounded-2xl p-4 text-[11px] text-slate-300 leading-relaxed italic">
+                    Maximum electrons per shell = 2n²
+                </div>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-white/5">
+                <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Energy Topology</h3>
+                <div id="energy-topology" class="flex flex-col-reverse gap-2 bg-dark-950/60 p-4 rounded-2xl border border-white/5 min-h-[120px]">
+                    <!-- Energy levels injected here -->
+                </div>
+            </div>
+
+            <div class="mt-6 pt-4 flex items-center justify-between">
+                <button id="reset-btn" class="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors">
+                    Reset Board
+                </button>
+                <div class="text-[9px] text-slate-600 font-black uppercase">Phase: Alpha</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+    /* Custom orbital animations closely matching the viewer */
+    @keyframes spin-slow { 100% { transform: rotate(360deg); } }
+    @keyframes spin-reverse { 100% { transform: rotate(-360deg); } }
+    @keyframes scanline { 0% { top: -100%; } 100% { top: 100%; } }
+    
+    .orbital-ring {
+        position: absolute;
+        border-radius: 50%;
+        border: 1px solid rgba(148, 163, 184, 0.15); 
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s ease;
+    }
+    .orbital-ring.active-shell {
+        border-color: rgba(56, 189, 248, 0.4);
+        border-width: 2px;
+        box-shadow: 0 0 20px rgba(56, 189, 248, 0.1) inset, 0 0 10px rgba(56, 189, 248, 0.05);
+    }
+    
+    .electron {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background: radial-gradient(circle at 30% 30%, #38bdf8, #0ea5e9);
+        border-radius: 50%;
+        box-shadow: 0 0 10px #38bdf8, 0 0 20px rgba(56, 189, 248, 0.4);
+        transform: translate(-50%, -50%); 
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        z-index: 10;
+    }
+    
+    .electron.new-electron {
+        animation: pulse-electron 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .drag-electron {
+        cursor: grab;
+        filter: drop-shadow(0 0 15px rgba(56, 189, 248, 0.6));
+    }
+    .drag-electron:active { cursor: grabbing; scale: 0.9; }
+    
+    @keyframes pulse-electron {
+        0% { transform: translate(-50%, -50%) scale(0); opacity: 0; filter: brightness(2); }
+        50% { transform: translate(-50%, -50%) scale(1.8); }
+        100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+
+    .is-spinning .orbital-ring:nth-child(even) { animation: spin-slow var(--speed, 10s) linear infinite; }
+    .is-spinning .orbital-ring:nth-child(odd) { animation: spin-reverse var(--speed, 10s) linear infinite; }
+    .not-spinning .orbital-ring { animation-play-state: paused !important; }
+
+    .animate-scanline {
+        position: absolute;
+        width: 100%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.4), transparent);
+        animation: scanline 4s linear infinite;
+    }
+
+    #shell-controls::-webkit-scrollbar { width: 4px; }
+    #shell-controls::-webkit-scrollbar-track { background: transparent; }
+    #shell-controls::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+
+</style>
+
+<script>
+    let currentDifficulty = 'beginner';
+    let gameScore = 0;
+    let gameStreak = 0;
+    let startTime = null;
+    let timerInterval = null;
+
+    // Constrain settings based on difficulty
+    const difficultySettings = {
+        beginner: { maxZ: 20, bonus: 100 },
+        intermediate: { maxZ: 36, bonus: 250 },
+        advanced: { maxZ: 54, bonus: 500 }
+    };
+
+    const shellNames = ['K (n=1)', 'L (n=2)', 'M (n=3)', 'N (n=4)', 'O (n=5)', 'P (n=6)', 'Q (n=7)'];
+    const maxCapacity = [2, 8, 18, 32, 50, 72, 98]; 
+
+    // DOM Elements
+    const exerciseLoading = document.getElementById('exercise-loading');
+    const exerciseContent = document.getElementById('exercise-content');
+    const controlsPanel = document.getElementById('controls-panel');
+    const targetName = document.getElementById('target-name');
+    const targetSymbol = document.getElementById('target-symbol');
+    const targetElectrons = document.getElementById('target-electrons');
+    const placedElectrons = document.getElementById('placed-electrons');
+    const placedContainer = document.getElementById('placed-container');
+    
+    const shellControls = document.getElementById('shell-controls');
+    const checkBtn = document.getElementById('check-answer-btn');
+    const nextBtn = document.getElementById('next-exercise-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const toggleSpinBtn = document.getElementById('toggle-spin');
+    
+    const atomViz = document.getElementById('atom-visualization');
+    const orbitalsLayer = document.getElementById('orbitals-layer');
+    const nucSymbol = document.getElementById('nuc-symbol');
+    
+    // Feedback and Game Stats
+    const feedbackOverlay = document.getElementById('feedback-overlay');
+    const feedbackTitle = document.getElementById('feedback-title');
+    const feedbackHint = document.getElementById('feedback-hint');
+    const feedbackCard = document.getElementById('feedback-card');
+    
+    const notationDisplay = document.getElementById('spectroscopic-notation');
+    const scoreDisplay = document.getElementById('game-score');
+    const streakDisplay = document.getElementById('game-streak');
+    const timerDisplay = document.getElementById('game-timer');
+    const diffBtns = document.querySelectorAll('.diff-btn');
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadElements();
+        
+        // Setup initial exercise
+        startNewExercise();
+        
+        // Listeners
+        toggleSpinBtn.addEventListener('click', toggleSpinning);
+        checkBtn.addEventListener('click', verifyConfiguration);
+        nextBtn.addEventListener('click', startNewExercise);
+        resetBtn.addEventListener('click', resetBoard);
+        
+        diffBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentDifficulty = btn.dataset.level;
+                diffBtns.forEach(b => {
+                    b.classList.remove('bg-primary', 'text-white');
+                    b.classList.add('text-slate-500');
+                });
+                btn.classList.add('bg-primary', 'text-white');
+                btn.classList.remove('text-slate-500');
+                startNewExercise();
+            });
+        });
+
+        setupDragAndDrop();
+    });
+
+    function startTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+        startTime = Date.now();
+        timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    function updateTimer() {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const secs = (elapsed % 60).toString().padStart(2, '0');
+        timerDisplay.textContent = `${mins}:${secs}`;
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+    }
+
+    async function loadElements() {
+        try {
+            const data = await fetchAPI('/api/elements/');
+            availableElements = (data.results || data);
+        } catch (error) {
+            console.error("Failed to load elements", error);
+        }
+    }
+
+    function startNewExercise() {
+        if (availableElements.length === 0) return;
+        
+        const settings = difficultySettings[currentDifficulty];
+        const filtered = availableElements.filter(el => el.atomic_number <= settings.maxZ);
+        
+        const randomIndex = Math.floor(Math.random() * filtered.length);
+        currentTask = filtered[randomIndex];
+        correctShells = calculateShells(currentTask.atomic_number);
+        
+        // Pad the correct shells array with 0s to standard length if needed
+        while(correctShells.length < 7) correctShells.push(0);
+        
+        // Reset user board
+        userShells = [0, 0, 0, 0, 0, 0, 0];
+        
+        // Update UI Text
+        targetName.textContent = currentTask.name;
+        targetSymbol.textContent = currentTask.symbol;
+        targetElectrons.textContent = currentTask.atomic_number;
+        nucSymbol.textContent = currentTask.symbol;
+        
+        // Toggle Panels
+        exerciseLoading.classList.add('hidden');
+        exerciseContent.classList.remove('hidden');
+        exerciseContent.classList.add('flex');
+        controlsPanel.classList.remove('hidden');
+        controlsPanel.classList.add('flex');
+        
+        checkBtn.classList.remove('hidden');
+        nextBtn.classList.add('hidden');
+        
+        hideFeedback(true);
+        updateControlsUI();
+        drawActiveAtom();
+        startTimer();
+    }
+
+    function resetBoard() {
+        userShells = [0, 0, 0, 0, 0, 0, 0];
+        updateControlsUI();
+        drawActiveAtom();
+        hideFeedback();
+        checkBtn.classList.remove('hidden');
+        nextBtn.classList.add('hidden');
+    }
+
+    function adjustShell(shellIndex, delta) {
+        const newValue = userShells[shellIndex] + delta;
+        if (newValue >= 0 && newValue <= maxCapacity[shellIndex]) {
+            userShells[shellIndex] = newValue;
+            updateControlsUI();
+            drawActiveAtom();
+            hideFeedback();
+        }
+    }
+
+    function updateControlsUI() {
+        const totalPlaced = userShells.reduce((a, b) => a + b, 0);
+        placedElectrons.textContent = totalPlaced;
+        
+        if (totalPlaced === currentTask.atomic_number) {
+            placedContainer.className = "bg-primary/20 border border-primary/50 rounded-lg p-3 text-center transition-colors";
+            placedElectrons.className = "text-2xl font-bold text-emerald-400";
+        } else if (totalPlaced > currentTask.atomic_number) {
+            placedContainer.className = "bg-rose-500/20 border border-rose-500/50 rounded-lg p-3 text-center transition-colors";
+            placedElectrons.className = "text-2xl font-bold text-rose-400";
+        } else {
+            placedContainer.className = "bg-dark-900 border border-dark-600 rounded-lg p-3 text-center transition-colors";
+            placedElectrons.className = "text-2xl font-bold text-blue-400";
+        }
+
+        shellControls.innerHTML = '';
+        
+        // Render controls for the first N shells (enough to hold the element + 1 extra for mistakes)
+        const requiredShells = Math.max(3, correctShells.filter(s => s > 0).length + 1);
+        
+        for(let i = 0; i < requiredShells; i++) {
+            const currentCount = userShells[i];
+            const max = maxCapacity[i];
+            
+            const row = document.createElement('div');
+            row.className = "bg-dark-900 border border-dark-600 rounded-lg p-3 flex justify-between items-center";
+            
+            row.innerHTML = `
+                <div class="flex flex-col">
+                    <span class="text-white font-bold">${shellNames[i]}</span>
+                    <span class="text-[10px] text-slate-500">Max: ${max}</span>
+                </div>
+                
+                <div class="flex items-center space-x-3 bg-dark-800 rounded-lg p-1 border border-dark-700">
+                    <button class="w-8 h-8 rounded-lg flex items-center justify-center bg-dark-700 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-colors ${currentCount === 0 ? 'opacity-50 cursor-not-allowed' : ''}" 
+                        onclick="adjustShell(${i}, -1)" ${currentCount === 0 ? 'disabled' : ''}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" /></svg>
+                    </button>
+                    
+                    <div class="w-6 text-center font-bold text-blue-400 select-none">
+                        ${currentCount}
+                    </div>
+                    
+                    <button class="w-8 h-8 rounded-lg flex items-center justify-center bg-dark-700 hover:bg-emerald-500/20 hover:text-emerald-400 text-slate-300 transition-colors ${currentCount >= max ? 'opacity-50 cursor-not-allowed' : ''}" 
+                        onclick="adjustShell(${i}, 1)" ${currentCount >= max ? 'disabled' : ''}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                    </button>
+                </div>
+            `;
+            shellControls.appendChild(row);
+        }
+    }
+
+    function drawActiveAtom() {
+        orbitalsLayer.innerHTML = '';
+        notationDisplay.innerHTML = generateSpectroscopicNotation(userShells);
+        
+        const startRadius = 60; 
+        const gap = 45;
+        const baseSpeed = 15;
+        
+        // Render 4 shells by default for beginners, or as many as needed
+        const maxShellsVisible = currentDifficulty === 'beginner' ? 4 : 5;
+        
+        for (let i = 0; i < maxShellsVisible; i++) {
+            const electronCount = userShells[i] || 0;
+            const radius = startRadius + (i * gap);
+            const diameter = radius * 2;
+            
+            const ring = document.createElement('div');
+            ring.className = `orbital-ring`;
+            ring.dataset.index = i;
+            ring.style.width = `${diameter}px`;
+            ring.style.height = `${diameter}px`;
+            
+            const duration = baseSpeed + (i * 8);
+            ring.style.setProperty('--speed', `${duration}s`);
+            
+            for (let e = 0; e < electronCount; e++) {
+                const angle = (e / electronCount) * 2 * Math.PI;
+                const x = radius * Math.cos(angle) + radius; 
+                const y = radius * Math.sin(angle) + radius;
+                
+                const electron = document.createElement('div');
+                electron.className = 'electron';
+                electron.style.left = `${x}px`;
+                electron.style.top = `${y}px`;
+                ring.appendChild(electron);
+            }
+            orbitalsLayer.appendChild(ring);
+        }
+
+        // Update Topology
+        const topology = document.getElementById('energy-topology');
+        if (!topology) return;
+        topology.innerHTML = '';
+        
+        const subOrbitals = [
+            { id: '1s', n: 1, type: 's', max: 2 },
+            { id: '2s', n: 2, type: 's', max: 2 },
+            { id: '2p', n: 2, type: 'p', max: 6 },
+            { id: '3s', n: 3, type: 's', max: 2 },
+            { id: '3p', n: 3, type: 'p', max: 6 },
+            { id: '4s', n: 4, type: 's', max: 2 },
+            { id: '3d', n: 3, type: 'd', max: 10 }
+        ];
+
+        let total = userShells.reduce((a, b) => a + b, 0);
+        let rem = total;
+
+        subOrbitals.forEach((orb, idx) => {
+            const fill = Math.min(rem, orb.max);
+            rem -= fill;
+            
+            const level = document.createElement('div');
+            const percent = (fill / orb.max) * 100;
+            level.className = `h-4 rounded-lg border border-white/5 relative overflow-hidden transition-all duration-500 ${fill > 0 ? 'bg-primary/10 border-primary/20' : 'bg-dark-900/40 opacity-30'}`;
+            level.innerHTML = `
+                <div class="absolute inset-0 bg-primary/40 transition-all duration-700" style="width: ${percent}%"></div>
+                <div class="absolute inset-0 flex items-center justify-between px-3">
+                    <span class="text-[8px] font-black text-white/60">${orb.id}</span>
+                    <span class="text-[8px] font-black text-white">${fill}/${orb.max}</span>
+                </div>
+            `;
+            topology.appendChild(level);
+        });
+    }
+
+    function verifyConfiguration() {
+        const totalPlaced = userShells.reduce((a, b) => a + b, 0);
+        
+        if (totalPlaced !== currentTask.atomic_number) {
+            showFeedback("Incorrect Count", `You deployed ${totalPlaced} electrons, but ${currentTask.name} requires ${currentTask.atomic_number}.`, "border-rose-500/50");
+            gameStreak = 0;
+            streakDisplay.textContent = gameStreak;
+            return;
+        }
+        
+        let isCorrect = true;
+        for (let i = 0; i < 7; i++) {
+            if (userShells[i] !== (correctShells[i] || 0)) {
+                isCorrect = false;
+                break;
+            }
+        }
+        
+        if (isCorrect) {
+            stopTimer();
+            const timeBonus = Math.max(0, 100 - Math.floor((Date.now() - startTime) / 1000));
+            const basePoints = difficultySettings[currentDifficulty].bonus;
+            const subScore = basePoints + timeBonus;
+            
+            gameScore += subScore;
+            gameStreak++;
+            
+            scoreDisplay.textContent = gameScore;
+            streakDisplay.textContent = gameStreak;
+            
+            showFeedback("Sequence Correct", `Target converged in ${(Math.floor((Date.now() - startTime)/1000))}s. Yield: +${subScore} pts.`, "border-emerald-500/50");
+            
+            checkBtn.classList.add('hidden');
+            nextBtn.classList.remove('hidden');
+            
+            document.getElementById('nucleus').classList.add('animate-success-ping');
+            setTimeout(() => document.getElementById('nucleus').classList.remove('animate-success-ping'), 1000);
+            
+        } else {
+            showFeedback("System Mismatch", "The energy levels are unstable. Check the Aufbau principle and electron capacity (2n²).", "border-amber-500/50");
+            gameStreak = 0;
+            streakDisplay.textContent = gameStreak;
+        }
+    }
+
+    function generateSpectroscopicNotation(shells) {
+        const orbitals = [
+            { n: 1, type: 's', max: 2 },
+            { n: 2, type: 's', max: 2 },
+            { n: 2, type: 'p', max: 6 },
+            { n: 3, type: 's', max: 2 },
+            { n: 3, type: 'p', max: 6 },
+            { n: 4, type: 's', max: 2 },
+            { n: 3, type: 'd', max: 10 },
+            { n: 4, type: 'p', max: 6 },
+            { n: 5, type: 's', max: 2 },
+            { n: 4, type: 'd', max: 10 },
+            { n: 5, type: 'p', max: 6 }
+        ];
+
+        let total = shells.reduce((a, b) => a + b, 0);
+        if (total === 0) return "Awaiting Signal...";
+        
+        let notation = [];
+        let remaining = total;
+
+        for (const orb of orbitals) {
+            if (remaining <= 0) break;
+            const fill = Math.min(remaining, orb.max);
+            notation.push(`${orb.n}${orb.type}<sup>${fill}</sup>`);
+            remaining -= fill;
+        }
+
+        return notation.join(' ');
+    }
+
+    function showFeedback(title, hint, borderColor) {
+        feedbackTitle.textContent = title;
+        feedbackHint.textContent = hint;
+        feedbackCard.className = `bg-dark-900/95 backdrop-blur-3xl border-2 px-12 py-8 rounded-[3rem] shadow-2xl text-center ${borderColor}`;
+        
+        feedbackOverlay.classList.remove('opacity-0', 'scale-150');
+        feedbackOverlay.classList.add('opacity-100', 'scale-100');
+        feedbackOverlay.style.pointerEvents = 'auto';
+    }
+    
+    function hideFeedback(instant = false) {
+        feedbackOverlay.classList.remove('opacity-100', 'scale-100');
+        feedbackOverlay.classList.add('opacity-0', 'scale-150');
+        feedbackOverlay.style.pointerEvents = 'none';
+        if (instant) feedbackOverlay.style.transition = 'none';
+        else feedbackOverlay.style.transition = '';
+    }
+
+    function setupDragAndDrop() {
+        const source = document.getElementById('electron-source');
+        source.addEventListener('mousedown', (e) => {
+            const dragEl = document.createElement('div');
+            dragEl.className = 'electron drag-electron';
+            dragEl.style.position = 'fixed';
+            dragEl.style.left = `${e.clientX}px`;
+            dragEl.style.top = `${e.clientY}px`;
+            dragEl.style.zIndex = '1000';
+            document.body.appendChild(dragEl);
+
+            const move = (moveEvent) => {
+                dragEl.style.left = `${moveEvent.clientX}px`;
+                dragEl.style.top = `${moveEvent.clientY}px`;
+                
+                // Highlight nearest shell
+                const nearest = findNearestShell(moveEvent.clientX, moveEvent.clientY);
+                document.querySelectorAll('.orbital-ring').forEach(r => r.classList.remove('active-shell'));
+                if (nearest) nearest.classList.add('active-shell');
+            };
+
+            const up = (upEvent) => {
+                const nearest = findNearestShell(upEvent.clientX, upEvent.clientY);
+                if (nearest) {
+                    const shellIdx = parseInt(nearest.dataset.index);
+                    adjustShell(shellIdx, 1);
+                }
+                document.body.removeChild(dragEl);
+                document.removeEventListener('mousemove', move);
+                document.removeEventListener('mouseup', up);
+            };
+
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', up);
+        });
+    }
+
+    function findNearestShell(x, y) {
+        const rings = document.querySelectorAll('.orbital-ring');
+        let nearest = null;
+        let minDist = 30; // Threshold
+
+        rings.forEach(ring => {
+            const rect = ring.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const dist = Math.abs(Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)) - rect.width / 2);
+            
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = ring;
+            }
+        });
+        return nearest;
+    }
+
+    function toggleSpinning() {
+        isSpinning = !isSpinning;
+        if(isSpinning) {
+            atomViz.classList.remove('not-spinning');
+            atomViz.classList.add('is-spinning');
+            toggleSpinBtn.classList.add('text-primary');
+        } else {
+            atomViz.classList.remove('is-spinning');
+            atomViz.classList.add('not-spinning');
+            toggleSpinBtn.classList.remove('text-primary');
+        }
+    }
+
+    // Identical heuristic to viewers
+    function calculateShells(atomicNumber) {
+        let electronsRemaining = atomicNumber;
+        const shells = [0, 0, 0, 0, 0, 0, 0]; 
+        
+        if (atomicNumber === 24) return [2, 8, 13, 1]; 
+        if (atomicNumber === 29) return [2, 8, 18, 1]; 
+        
+        if (electronsRemaining > 2) { shells[0] = 2; electronsRemaining -= 2; } 
+        else { shells[0] = electronsRemaining; return shells; }
+
+        if (electronsRemaining > 8) { shells[1] = 8; electronsRemaining -= 8; } 
+        else { shells[1] = electronsRemaining; return shells; }
+        
+        if (electronsRemaining > 8) {
+            shells[2] = 8; electronsRemaining -= 8;
+            if (electronsRemaining > 2) {
+                shells[3] = 2; electronsRemaining -= 2;
+                let mFill = Math.min(10, electronsRemaining);
+                shells[2] += mFill; electronsRemaining -= mFill;
+                if(electronsRemaining > 0) { shells[3] += electronsRemaining; }
+            } else {
+                shells[3] = electronsRemaining; return shells;
+            }
+        } else {
+            shells[2] = electronsRemaining;
+        }
+
+        return shells;
+    }
+</script>
+{% endblock %}

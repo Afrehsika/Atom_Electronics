@@ -1,0 +1,1146 @@
+{% extends 'base.html' %}
+
+{% block title %}Atom Viewer - ChemLearn{% endblock %}
+
+{% block extra_head %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4, .font-outfit { font-family: 'Outfit', sans-serif; }
+    </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col lg:flex-row gap-6 w-full fade-in overflow-hidden" style="height: calc(100vh - 280px);">
+    <!-- Left Column: Element Selection -->
+    <div class="w-full lg:w-1/4 flex flex-col gap-6 h-full min-h-0">
+        <div class="bg-dark-800/40 backdrop-blur-xl rounded-3xl border border-white/5 p-6 flex-grow h-0 min-h-0 shadow-[0_8px_32px_rgba(0,0,0,0.3)] flex flex-col group transition-all">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-black text-white tracking-tight">Elements</h2>
+                <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                </div>
+            </div>
+            <div class="relative mb-6">
+                <input type="text" id="element-search" placeholder="Search period table..." 
+                    class="w-full bg-dark-950/60 border border-white/5 rounded-2xl py-3 px-5 text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-slate-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute right-4 top-1/2 -translate-y-1/2 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </div>
+            
+            <div class="overflow-y-auto flex-grow custom-scrollbar pr-2 space-y-2" id="elements-list">
+                <!-- Elements injected here via AJAX -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle Column: Interactive Canvas -->
+    <div class="w-full lg:w-2/4 flex flex-col h-full min-h-0">
+        <div class="bg-dark-950/40 backdrop-blur-md rounded-[3rem] border border-white/5 p-8 h-full flex flex-col relative shadow-2xl overflow-hidden group/canvas">
+            
+            <!-- Holographic Grid Background -->
+            <div class="absolute inset-0 opacity-10 pointer-events-none" 
+                 style="background-image: 
+                    linear-gradient(rgba(56, 189, 248, 0.1) 1px, transparent 1px), 
+                    linear-gradient(90deg, rgba(56, 189, 248, 0.1) 1px, transparent 1px); 
+                    background-size: 40px 40px; background-position: center;">
+            </div>
+            <div class="absolute inset-0 bg-radial-at-c from-primary/5 via-transparent to-transparent opacity-0 group-hover/canvas:opacity-100 transition-opacity duration-1000"></div>
+            
+            <!-- Scanline Effect -->
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent blur-sm animate-scanline pointer-events-none"></div>
+
+            <!-- Controls Overlay -->
+            <div class="absolute top-8 left-8 z-30">
+                <button id="btn-playground" class="px-6 py-2.5 bg-gradient-to-br from-amber-400 to-rose-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-[0_10px_20px_rgba(244,63,94,0.3)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2 border border-white/20">
+                    <div class="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                    Reaction Area
+                </button>
+            </div>
+
+            <div class="absolute top-8 right-8 z-30 flex flex-col space-y-3">
+                <div class="flex p-1 bg-dark-900/80 rounded-2xl backdrop-blur-xl border border-white/5 shadow-2xl">
+                    <button id="mode-bohr" class="px-5 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl bg-primary text-white shadow-lg transition-all">Bohr</button>
+                    <button id="mode-quantum" class="px-5 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-slate-500 hover:text-slate-300 transition-all">Quantum</button>
+                </div>
+                <div class="ml-auto">
+                    <button id="toggle-spin" class="w-10 h-10 flex items-center justify-center bg-dark-900/80 rounded-2xl border border-white/5 text-primary hover:bg-primary hover:text-white shadow-xl transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Ion & Isotope Controls -->
+            <div id="atom-controls" class="absolute bottom-8 left-8 z-30 hidden space-y-4">
+                <div class="bg-dark-900/80 backdrop-blur-xl p-4 rounded-[2rem] border border-white/5 shadow-2xl flex items-center gap-4">
+                    <div class="flex flex-col">
+                        <span class="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-2 px-1">Ionization</span>
+                        <div class="flex bg-dark-950 rounded-xl p-1 border border-white/5">
+                            <button id="remove-electron" class="w-10 h-10 flex items-center justify-center text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all font-black text-xl">-</button>
+                            <div class="w-px h-6 bg-white/5 self-center"></div>
+                            <button id="add-electron" class="w-10 h-10 flex items-center justify-center text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-all font-black text-xl">+</button>
+                        </div>
+                    </div>
+                    <div class="w-px h-12 bg-white/5"></div>
+                    <div class="flex flex-col">
+                        <span class="text-[9px] text-slate-500 uppercase font-black tracking-widest mb-2 px-1">Isotopes</span>
+                        <select id="isotope-selector" class="bg-dark-950 border border-white/5 text-[10px] text-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer">
+                            <option value="standard">Most Abundant</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- The Atom Canvas -->
+            <div id="atom-container" class="relative w-full flex-grow flex flex-col items-center justify-center min-h-0">
+                <div class="text-center text-slate-600 space-y-4" id="empty-state">
+                    <div class="relative w-24 h-24 mx-auto mb-6">
+                        <div class="absolute inset-0 border-2 border-primary/20 rounded-full animate-ping"></div>
+                        <div class="absolute inset-2 border-2 border-primary/40 rounded-full"></div>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="absolute inset-0 h-16 w-16 m-auto text-primary animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+                        </svg>
+                    </div>
+                    <p class="text-sm uppercase tracking-[0.2em] font-black opacity-50">Awaiting Target Element</p>
+                </div>
+
+                <div id="atom-visualization" class="relative hidden flex items-center justify-center w-[450px] h-[450px]">
+                    <!-- Central Nucleus -->
+                    <div id="nucleus" class="absolute z-10 w-24 h-24 rounded-full bg-gradient-to-br from-rose-500 via-rose-600 to-purple-800 shadow-[0_0_80px_rgba(225,29,72,0.4)] flex flex-col items-center justify-center text-white cursor-pointer hover:scale-110 active:scale-95 transition-all ring-4 ring-white/10 ring-offset-4 ring-offset-dark-950">
+                        <span id="nuc-symbol" class="text-4xl font-black tracking-tighter leading-none">?</span>
+                        <div class="mt-1 h-px w-8 bg-white/20"></div>
+                        <span id="nuc-mass" class="text-[9px] font-black opacity-80 mt-1 uppercase tracking-widest px-2 py-0.5 rounded bg-black/20"></span>
+                    </div>
+
+                    <!-- Orbitals injected here via JS -->
+                    <div id="orbitals-layer" class="absolute inset-0 flex items-center justify-center pointer-events-none"></div>
+                </div>
+            </div>
+            
+            <div class="mt-4 text-center z-10 flex-shrink-0">
+                <div class="inline-block px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-2 hidden" id="category-badge">
+                     <p id="atom-category" class="text-[9px] font-black uppercase tracking-[0.3em] text-primary">Category</p>
+                </div>
+                <h3 id="atom-name" class="text-4xl font-black text-white hidden tracking-tighter">Atom Name</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="w-full lg:w-1/4 flex flex-col h-full min-h-0">
+        <div class="bg-dark-800/40 backdrop-blur-xl rounded-3xl border border-white/5 p-6 h-full flex-grow min-h-0 shadow-2xl flex flex-col relative overflow-hidden" id="info-panel">
+            <div id="info-content" class="hidden flex-col h-full overflow-hidden">
+                <div class="flex items-center justify-between mb-8 flex-shrink-0">
+                     <h2 class="text-sm font-black text-slate-300 uppercase tracking-[0.3em]">Quantum Profile</h2>
+                     <span id="config-badge" class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Stable</span>
+                </div>
+            
+            <div class="space-y-6 flex-grow overflow-y-auto custom-scrollbar pr-2">
+                <!-- Main Stats Grid -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-dark-900/60 rounded-2xl p-4 border border-white/5 text-center group hover:border-primary/30 transition-all">
+                        <div class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-2 px-1">Valence e⁻</div>
+                        <div id="valence-count" class="text-4xl font-black text-white group-hover:text-primary transition-colors">0</div>
+                    </div>
+                    <div class="bg-dark-900/60 rounded-2xl p-4 border border-white/5 text-center group hover:border-blue-400/30 transition-all">
+                        <div class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-2 px-1">Total e⁻</div>
+                        <div id="total-electrons" class="text-4xl font-black text-white group-hover:text-blue-400 transition-colors">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-dark-900/60 rounded-2xl p-5 border border-white/5 relative group">
+                    <div class="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-4">Standard Notation</div>
+                    <div id="electron-config" class="font-mono text-lg text-primary tracking-wider font-bold">...</div>
+                    <div class="absolute top-4 right-4 text-[10px] text-primary/40 font-black">SPDF</div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-dark-900/60 rounded-2xl p-4 border border-white/5">
+                        <div class="text-[9px] text-slate-500 font-bold uppercase mb-2">Protons (p⁺)</div>
+                        <div id="proton-count" class="text-2xl font-black text-rose-500">0</div>
+                    </div>
+                    <div class="bg-dark-900/60 rounded-2xl p-4 border border-white/5 relative group">
+                        <div class="text-[9px] text-slate-500 font-bold uppercase mb-2">Neutrons (n⁰)</div>
+                        <div id="neutron-count" class="text-2xl font-black text-slate-400">0</div>
+                        <div class="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-3 bg-dark-950 text-[10px] leading-relaxed text-slate-400 rounded-xl shadow-2xl border border-white/10 z-[100] backdrop-blur-3xl">
+                            Mass - Z (Calculated from selected isotope)
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex justify-between">
+                        <span>Shell Distribution</span>
+                    </h3>
+                    <div id="shell-breakdown" class="space-y-2">
+                        <!-- Shells injected via JS -->
+                    </div>
+                </div>
+
+                <div class="pt-6 border-t border-white/5">
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                        <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                        Bonding Capacity
+                    </h3>
+                    <div id="bond-prediction" class="space-y-4">
+                        <div class="flex flex-wrap gap-2" id="possible-molecules"></div>
+                        <p id="valence-note" class="text-[11px] text-slate-400 italic leading-relaxed"></p>
+                    </div>
+                </div>
+
+                <div class="pt-6 border-t border-white/5">
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Properties Matrix</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="p-3 bg-dark-950/60 rounded-xl border border-white/5">
+                            <div class="text-[8px] text-slate-600 uppercase font-black mb-1">Radius</div>
+                            <div id="prop-radius" class="text-xs font-bold text-slate-200">-</div>
+                        </div>
+                        <div class="p-3 bg-dark-950/60 rounded-xl border border-white/5">
+                            <div class="text-[8px] text-slate-600 uppercase font-black mb-1">Electronegativity</div>
+                            <div id="prop-en" class="text-xs font-bold text-slate-200">-</div>
+                        </div>
+                        <div class="p-3 bg-dark-950/60 rounded-xl border border-white/5">
+                            <div class="text-[8px] text-slate-600 uppercase font-black mb-1">Melting Point</div>
+                            <div id="prop-melt" class="text-xs font-bold text-slate-200">-</div>
+                        </div>
+                        <div class="p-3 bg-dark-950/60 rounded-xl border border-white/5">
+                            <div class="text-[8px] text-slate-600 uppercase font-black mb-1">Phase</div>
+                            <div id="prop-phase" class="text-xs font-bold text-slate-200">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-6 border-t border-white/5">
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Real World Utility</h3>
+                    <p id="real-world-uses" class="text-[11px] text-slate-400 leading-relaxed"></p>
+                </div>
+
+                <div class="pt-6 border-t border-white/5 mb-6">
+                    <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Energy Diagram</h3>
+                    <div id="energy-levels" class="flex flex-col-reverse gap-2 bg-dark-950/60 p-4 rounded-2xl border border-white/5"></div>
+                </div>
+            </div>
+
+            <div class="mt-auto pt-6">
+                <a id="btn-builder" href="/simulations/" class="px-6 py-4 bg-primary text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-[0_8px_24px_rgba(56,189,248,0.3)] hover:scale-105 active:scale-95 transition-all text-center flex items-center justify-center gap-3">
+                    <span>Initiate Builder</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                </a>
+            </div>
+          </div>
+
+          <!-- Info Placeholder -->
+          <div id="info-placeholder" class="flex flex-col items-center justify-center h-full text-center p-8">
+              <div class="w-20 h-20 rounded-3xl bg-primary/5 flex items-center justify-center mb-6 border border-primary/10">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-primary/40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <p class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Quantum Data<br><span class="text-primary/60">Awaiting Selection</span></p>
+          </div>
+          </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reaction Playground Modal -->
+<div id="playground-modal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-dark-950/60 backdrop-blur-2xl">
+    <div class="bg-dark-900/40 border border-white/10 rounded-[3rem] w-full max-w-5xl h-[85vh] flex flex-col shadow-[0_32px_128px_rgba(0,0,0,0.8)] overflow-hidden transition-all duration-500 scale-95 opacity-0" id="playground-cont">
+        <div class="p-8 border-b border-white/5 flex justify-between items-center bg-dark-950/40">
+            <div>
+                <h2 class="text-3xl font-black text-white tracking-tighter">Reaction Laboratory</h2>
+                <p class="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em] mt-1">Experimental Atomic Fusion Workspace</p>
+            </div>
+            <button id="close-playground" class="w-12 h-12 rounded-2xl bg-white/5 hover:bg-rose-500/20 hover:text-rose-500 flex items-center justify-center text-slate-400 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+        
+        <div class="flex-grow flex p-6 gap-6 overflow-hidden">
+            <!-- Selector -->
+            <div class="w-72 flex flex-col gap-4 h-full min-h-0 shrink-0">
+                <div class="bg-dark-950/40 p-5 rounded-3xl border border-white/5 shadow-inner flex flex-col shrink-0">
+                    <h3 class="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-4">Reagent Selection</h3>
+                    <div id="reagent-slots" class="flex flex-wrap items-center justify-center gap-2 mb-4 min-h-[60px] max-h-[120px] overflow-y-auto custom-scrollbar p-3 bg-dark-950/40 rounded-2xl border border-white/5 shadow-inner relative">
+                        <div id="empty-reagents-msg" class="text-slate-700 text-[10px] font-black uppercase tracking-widest pointer-events-none">Awaiting Reagents</div>
+                    </div>
+                    <div class="space-y-3">
+                        <button id="btn-react" class="w-full py-4 bg-primary text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl hover:scale-105 active:scale-95 disabled:opacity-20 disabled:grayscale disabled:scale-100 transition-all" disabled>Initiate Fusion</button>
+                        <button id="btn-clear-react" class="w-full py-2 text-[10px] text-slate-600 hover:text-rose-400 font-bold uppercase tracking-widest transition-colors">Clear Protocol</button>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col flex-grow h-0 min-h-0 overflow-hidden bg-dark-800/40 backdrop-blur-3xl rounded-[2rem] border border-white/5 shadow-2xl p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Element Library</h3>
+                        <div class="flex items-center gap-2">
+                             <div class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+                             <span id="library-count" class="text-[9px] font-bold text-slate-600 uppercase">Ready</span>
+                        </div>
+                    </div>
+                    
+                    <div class="relative mb-5">
+                        <input type="text" id="playground-search" placeholder="Search symbol or name..." 
+                            class="w-full bg-dark-950/60 border border-white/5 rounded-2xl py-3 px-5 text-[11px] text-slate-200 focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all placeholder:text-slate-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute right-4 top-1/2 -translate-y-1/2 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+
+                    <div class="flex-grow overflow-y-auto custom-scrollbar pr-1 grid grid-cols-2 gap-2 auto-rows-max" id="playground-list">
+                        <!-- Elements injected here as grid tiles -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Stage -->
+            <div class="w-2/3 bg-dark-950/40 rounded-[2.5rem] border border-white/5 relative flex flex-col items-center justify-center overflow-hidden group/stage shadow-inner">
+                <div class="absolute inset-0 opacity-5" style="background-image: radial-gradient(#38bdf8 1px, transparent 1px); background-size: 40px 40px;"></div>
+                
+                <!-- Reaction Animation Stage -->
+                <div id="reaction-stage" class="relative w-full h-full flex items-center justify-center">
+                    <div id="react-atom-1" class="absolute transition-all duration-1000 transform opacity-0 z-10"></div>
+                    <div id="react-atom-2" class="absolute transition-all duration-1000 transform opacity-0 z-10"></div>
+                    
+                    <div id="product-molecule" class="absolute transform scale-0 transition-all duration-1000 text-center z-20">
+                        <div class="relative inline-block mb-6">
+                            <div class="absolute inset-0 bg-primary/20 blur-3xl animate-pulse rounded-full"></div>
+                            <div class="text-8xl relative drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]" id="molecule-emoji">⚗️</div>
+                        </div>
+                        <h4 class="text-5xl font-black text-white tracking-tighter" id="molecule-name">Water</h4>
+                        <div class="mt-2 text-xl font-mono font-bold text-primary/80" id="molecule-formula">H₂O</div>
+                    </div>
+                </div>
+                
+                <div id="reaction-log" class="absolute bottom-6 left-6 right-6 bg-dark-950/80 p-5 rounded-2xl border border-white/5 text-[11px] text-slate-500 font-mono h-28 overflow-y-auto custom-scrollbar shadow-2xl backdrop-blur-3xl">
+                    <div class="text-emerald-500/60 font-black mb-1">PROTOCOLS LOADED]</div>
+                    <div class="opacity-50">> System ready for reagent input.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+    /* Custom orbital animations */
+    @keyframes spin-slow { 100% { transform: rotate(360deg); } }
+    @keyframes spin-reverse { 100% { transform: rotate(-360deg); } }
+    
+    .orbital-ring {
+        position: absolute;
+        border-radius: 50%;
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .electron {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: radial-gradient(circle at 30% 30%, #38bdf8, #0ea5e9);
+        border-radius: 50%;
+        box-shadow: 0 0 15px rgba(56, 189, 248, 0.6), 0 0 30px rgba(56, 189, 248, 0.2);
+        transform: translate(-50%, -50%); 
+        z-index: 5;
+    }
+
+    .shell-label {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 7px;
+        color: #64748b;
+        font-weight: 900;
+        font-family: monospace;
+        pointer-events: none;
+        letter-spacing: 0.1em;
+    }
+
+    /* Energy Level Symbols */
+    .level-box {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+    .orb-slot {
+        width: 18px;
+        height: 18px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: #38bdf8;
+        font-weight: bold;
+    }
+
+    @keyframes scanline {
+        0% { top: -5%; opacity: 0; }
+        50% { opacity: 1; }
+        100% { top: 100%; opacity: 0; }
+    }
+    .animate-scanline {
+        animation: scanline 4s linear infinite;
+    }
+
+    /* Custom scrollbar for better visibility */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { 
+        background: rgba(56, 189, 248, 0.5); 
+        border-radius: 10px;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { 
+        background: rgba(56, 189, 248, 0.4); 
+    }
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+    .animate-shake {
+        animation: shake 0.1s linear infinite;
+    }
+</style>
+
+<script>
+    let availableElements = [];
+    let currentElement = null;
+    let isSpinning = true;
+    let currentViewMode = 'bohr'; // 'bohr' or 'quantum'
+    let currentIonCharge = 0; // 0=neutral, +1=cation, -1=anion
+    let animFrameIds = [];
+
+    // THREE.js global objects
+    let scene, camera, renderer, atomGroup;
+
+    // DOM Elements
+    const elementsList = document.getElementById('elements-list');
+    const searchInput = document.getElementById('element-search');
+    
+    const atomViz = document.getElementById('atom-visualization');
+    const orbitalsLayer = document.getElementById('orbitals-layer');
+    const atomControls = document.getElementById('atom-controls');
+    
+    const infoPanel = document.getElementById('info-panel');
+    const shellBreakdown = document.getElementById('shell-breakdown');
+    
+    const toggleSpinBtn = document.getElementById('toggle-spin');
+    const modeBohr = document.getElementById('mode-bohr');
+    const modeQuantum = document.getElementById('mode-quantum');
+    const isoSelect = document.getElementById('isotope-selector');
+
+    // Initialization
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadElements();
+        initThree();
+        
+        searchInput.addEventListener('input', (e) => filterElements(e.target.value));
+        
+        toggleSpinBtn.addEventListener('click', () => {
+            isSpinning = !isSpinning;
+            toggleSpinBtn.classList.toggle('text-primary', isSpinning);
+        });
+
+        modeBohr.addEventListener('click', () => switchMode('bohr'));
+        modeQuantum.addEventListener('click', () => switchMode('quantum'));
+
+        document.getElementById('add-electron').addEventListener('click', () => changeIon(1));
+        document.getElementById('remove-electron').addEventListener('click', () => changeIon(-1));
+        isoSelect.addEventListener('change', () => selectElement(currentElement, true));
+    });
+
+    function initThree() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(400, 400);
+        renderer.setPixelRatio(window.devicePixelRatio);
+    }
+
+    function switchMode(mode) {
+        currentViewMode = mode;
+        const activeClass = 'px-5 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl bg-primary text-white shadow-lg transition-all';
+        const inactiveClass = 'px-5 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl text-slate-500 hover:text-slate-300 transition-all';
+        
+        modeBohr.className = mode === 'bohr' ? activeClass : inactiveClass;
+        modeQuantum.className = mode === 'quantum' ? activeClass : inactiveClass;
+        
+        if (currentElement) selectElement(currentElement, true);
+    }
+
+    function changeIon(delta) {
+        currentIonCharge += delta;
+        if (currentElement) selectElement(currentElement, true);
+    }
+
+    async function loadElements() {
+        try {
+            const data = await fetchAPI('/api/elements/');
+            availableElements = data.results || data;
+            renderElementList(availableElements);
+        } catch (error) {
+            console.error("Failed to load elements", error);
+            elementsList.innerHTML = `<div class="text-rose-400 text-center py-4">Failed to load elements.</div>`;
+        }
+    }
+
+    function renderElementList(elements) {
+        elementsList.innerHTML = '';
+        elements.forEach(el => {
+            const item = document.createElement('div');
+            item.className = `group flex items-center justify-between p-3.5 rounded-2xl border border-white/5 bg-dark-900/60 hover:bg-primary/10 hover:border-primary/30 cursor-pointer transition-all duration-300`;
+            item.innerHTML = `
+                <div class="flex items-center space-x-4">
+                    <div class="w-11 h-11 rounded-xl font-black flex items-center justify-center bg-dark-950 border border-white/5 text-primary text-base group-hover:scale-110 transition-transform">
+                        ${el.symbol}
+                    </div>
+                    <div class="flex flex-col">
+                        <div class="font-black text-white text-[13px] tracking-tight leading-none mb-1.5">${el.name}</div>
+                        <div class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">${el.category}</div>
+                    </div>
+                </div>
+                <div class="text-[11px] text-slate-700 font-black pr-2">#${el.atomic_number}</div>
+            `;
+            item.addEventListener('click', () => {
+                currentIonCharge = 0;
+                selectElement(el);
+            });
+            elementsList.appendChild(item);
+        });
+    }
+
+    function filterElements(searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const filtered = availableElements.filter(el => 
+            el.name.toLowerCase().includes(term) || el.symbol.toLowerCase().includes(term)
+        );
+        renderElementList(filtered);
+    }
+
+    function calculateShells(atomicNumber) {
+        let electronsRemaining = atomicNumber;
+        const shells = [0, 0, 0, 0, 0, 0, 0]; 
+        const maxCapacity = [2, 8, 18, 32, 32, 18, 8]; 
+        
+        if (atomicNumber === 24) return [2, 8, 13, 1]; 
+        if (atomicNumber === 29) return [2, 8, 18, 1]; 
+        if (atomicNumber === 46) return [2, 8, 18, 18]; 
+        if (atomicNumber === 47) return [2, 8, 18, 18, 1]; 
+        if (atomicNumber === 79) return [2, 8, 18, 32, 18, 1]; 
+
+        if (electronsRemaining > 2) { shells[0] = 2; electronsRemaining -= 2; } 
+        else { shells[0] = electronsRemaining; return shells.filter(s => s > 0); }
+
+        if (electronsRemaining > 8) { shells[1] = 8; electronsRemaining -= 8; } 
+        else { shells[1] = electronsRemaining; return shells.filter(s => s > 0); }
+        
+        if (electronsRemaining > 8) {
+            shells[2] = 8; electronsRemaining -= 8;
+            if (electronsRemaining > 2) {
+                shells[3] = 2; electronsRemaining -= 2;
+                let mFill = Math.min(10, electronsRemaining);
+                shells[2] += mFill; electronsRemaining -= mFill;
+                if(electronsRemaining > 0) shells[3] += electronsRemaining; 
+            } else {
+                shells[3] = electronsRemaining; return shells.filter(s => s > 0);
+            }
+        } else {
+            shells[2] = electronsRemaining;
+        }
+
+        return shells.filter(s => s > 0);
+    }
+    
+    function formatElectronConfig(configStr) {
+        if(!configStr) return "Unknown";
+        return configStr.replace(/(\d[a-z])(\d+)/g, "$1<sup>$2</sup>");
+    }
+
+    function selectElement(element, keepState = false) {
+        currentElement = element;
+        document.getElementById('empty-state').classList.add('hidden');
+        atomViz.classList.remove('hidden');
+        document.getElementById('atom-name').classList.remove('hidden');
+        document.getElementById('category-badge').classList.remove('hidden');
+        
+        document.getElementById('info-content').classList.remove('hidden');
+        document.getElementById('info-placeholder').classList.add('hidden');
+        document.getElementById('info-content').classList.add('flex');
+        
+        atomControls.classList.remove('hidden');
+
+        // Text Updates
+        document.getElementById('atom-name').textContent = element.name;
+        document.getElementById('atom-category').textContent = element.category;
+        
+        // Ion Status (Styled)
+        const symbol = element.symbol;
+        const chargeStr = currentIonCharge === 0 ? '' : (Math.abs(currentIonCharge) === 1 ? (currentIonCharge > 0 ? '⁻' : '⁺') : (Math.abs(currentIonCharge) + (currentIonCharge > 0 ? '⁻' : '⁺')));
+        document.getElementById('nuc-symbol').innerHTML = `${symbol}<sup class="text-base ml-1 font-black text-primary animate-pulse">${chargeStr}</sup>`;
+        
+        const mass = Math.round(element.atomic_mass);
+        document.getElementById('nuc-mass').textContent = mass;
+
+        // Configuration updates
+        document.getElementById('electron-config').innerHTML = formatElectronConfig(element.electron_configuration);
+        const totalE = element.atomic_number + currentIonCharge;
+        document.getElementById('total-electrons').textContent = totalE; 
+        document.getElementById('proton-count').textContent = element.atomic_number;
+        
+        document.getElementById('config-badge').textContent = currentIonCharge === 0 ? 'Stable' : (currentIonCharge > 0 ? 'Anion' : 'Cation');
+        document.getElementById('config-badge').className = `px-2 py-1 text-xs rounded border ${currentIonCharge === 0 ? 'bg-primary/20 text-emerald-400 border-primary/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'}`;
+
+        // Properties
+        document.getElementById('prop-radius').textContent = element.atomic_radius ? `${element.atomic_radius} pm` : "N/A";
+        document.getElementById('prop-en').textContent = element.electronegativity || "N/A";
+        document.getElementById('prop-melt').textContent = element.melt ? `${element.melt} K` : "N/A";
+        document.getElementById('prop-phase').textContent = element.phase || "Unknown";
+
+        // Isotopes (demo placeholder logic)
+        if (!keepState) {
+            isoSelect.innerHTML = `<option value="standard">Most Abundant (${mass})</option>`;
+            if (element.symbol === 'H') {
+                isoSelect.innerHTML += `<option value="D">Deuterium (2)</option><option value="T">Tritium (3)</option>`;
+            } else {
+                isoSelect.innerHTML += `<option value="iso1">Isotope ${mass+1}</option>`;
+            }
+        }
+        
+        const massVal = isoSelect.value === 'D' ? 2 : (isoSelect.value === 'T' ? 3 : (isoSelect.value === 'iso1' ? mass+1 : mass));
+        document.getElementById('neutron-count').textContent = massVal - element.atomic_number;
+        document.getElementById('nuc-mass').textContent = massVal;
+
+        // Shells
+        const shells = calculateShells(totalE);
+        const valence = shells[shells.length - 1] || 0;
+        document.getElementById('valence-count').textContent = valence;
+        
+        const shellNames = ['K (n=1)', 'L (n=2)', 'M (n=3)', 'N (n=4)', 'O (n=5)', 'P (n=6)', 'Q (n=7)'];
+        const maxCapacity = [2, 8, 18, 32, 50, 72, 98]; 
+        
+        shellBreakdown.innerHTML = '';
+        shells.forEach((count, i) => {
+            const isFull = count === maxCapacity[i];
+            shellBreakdown.innerHTML += `
+                <div class="flex justify-between items-center bg-dark-900/40 px-5 py-3 rounded-2xl border border-white/5 group hover:border-primary/20 transition-all">
+                    <span class="text-slate-500 text-[10px] font-black uppercase tracking-widest">${shellNames[i]}</span>
+                    <div class="flex items-center space-x-3">
+                        <div class="flex gap-1">
+                             ${Array(count).fill(0).map(() => `<div class="w-1 h-1 rounded-full ${isFull ? 'bg-emerald-400' : 'bg-primary'}"></div>`).join('')}
+                        </div>
+                        <span class="${isFull ? 'text-emerald-400' : 'text-blue-400'} font-black text-sm">${count}</span>
+                        <span class="text-slate-700 text-[10px] font-bold">/ ${maxCapacity[i]}</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Real world uses
+        const uses = {
+            'H': 'Rocket fuel, fertilizer production (Haber process), fuel cells.',
+            'He': 'Cryogenics (MRI cooling), balloons, deep-sea diving mixtures.',
+            'Li': 'Rechargeable batteries, psychiatric medication, ceramic glazes.',
+            'Be': 'X-ray tube windows, aerospace components, non-sparking tools.',
+            'B': 'Borosilicate glass (Pyrex), insecticides, rocket fuel igniters.',
+            'C': 'Basis of all organic life, steel manufacturing, carbon fiber.',
+            'N': 'Liquid nitrogen cooling, fertilizer (ammonia), explosives.',
+            'O': 'Respiration, combustion, rocket propellant, steel production.',
+            'F': 'Toothpaste (fluoride), refrigeration (Freon), uranium enrichment.',
+            'Ne': 'Neon signs, high-voltage indicators, cryogenic refrigeration.',
+            'Na': 'Table salt, street lights, heat transfer in nuclear reactors.',
+            'Mg': 'Lightweight alloys, flares, medicine (Antacids), fireworks.',
+            'Al': 'Aircraft bodies, soda cans, foil, power lines, window frames.',
+            'Si': 'Semiconductors (chips), glass, silicone lubricants, solar cells.',
+            'P': 'Matches, fertilizer, detergents, steel making, nerve agents.',
+            'S': 'Sulfuric acid production, vulcanizing rubber, gunpowder, matches.',
+            'Cl': 'Water purification, bleach (PVC), organic solvents, table salt.',
+            'Ar': 'Shielding gas for welding, incandescent light bulbs, lasers.',
+            'K': 'Fertilizer, glass manufacture, soaps, gunpowder (Saltpeter).',
+            'Ca': 'Cement/Concrete, steel making, calcium supplements, chalk.',
+            'Fe': 'Structural steel, magnets, tools, biological hemoglobin.'
+        };
+        document.getElementById('real-world-uses').textContent = uses[element.symbol] || element.description.substring(0, 150) + "...";
+
+        // Bond Prediction
+        predictBonds(element, valence);
+
+        // Energy levels
+        renderEnergyLevels(element.electron_configuration, totalE);
+
+        // Draw the atom
+        if (currentViewMode === 'bohr') {
+            document.getElementById('nucleus').classList.remove('hidden');
+            drawBohrAtom(shells);
+        } else {
+            document.getElementById('nucleus').classList.add('hidden');
+            drawQuantumAtom(element);
+        }
+    }
+
+    function predictBonds(el, valence) {
+        const container = document.getElementById('possible-molecules');
+        const note = document.getElementById('valence-note');
+        container.innerHTML = '';
+        
+        const z = el.atomic_number;
+        let molecules = [];
+        let rule = "";
+
+        if (z === 1) molecules = ['H₂', 'H₂O', 'CH₄', 'HCl'];
+        else if (z === 6) molecules = ['CH₄', 'CO₂', 'C₂H₆', 'C₂H₅OH'];
+        else if (z === 7) molecules = ['NH₃', 'N₂', 'NO₂', 'HNO₃'];
+        else if (z === 8) molecules = ['H₂O', 'O₂', 'CO₂', 'SO₂'];
+        else if (z === 17) molecules = ['HCl', 'NaCl', 'Cl₂', 'CCl₄'];
+        else if (z === 11) molecules = ['NaCl', 'NaOH', 'Na₂O'];
+        
+        molecules.forEach(m => {
+            const span = document.createElement('span');
+            span.className = 'px-2 py-1 bg-dark-900 border border-dark-700 rounded text-xs text-emerald-400 font-bold';
+            span.textContent = m;
+            container.appendChild(span);
+        });
+
+        const typicalBonds = valence <= 4 ? valence : (8 - valence);
+        note.textContent = z <= 2 ? `Outer shell full with 2 e⁻.` : (valence === 8 ? "Stable Noble Gas. Rarely forms bonds." : `Typically forms ${typicalBonds} bond(s) to reach octet.`);
+    }
+
+    function renderEnergyLevels(configStr, count) {
+        const elContainer = document.getElementById('energy-levels');
+        elContainer.innerHTML = '';
+        if(!configStr) return;
+
+        const subshells = configStr.split(' ');
+        subshells.forEach(ss => {
+            const name = ss.substring(0, 2);
+            const electrons = parseInt(ss.substring(2));
+            const slots = (name.includes('s')) ? 1 : (name.includes('p') ? 3 : (name.includes('d') ? 5 : 7));
+            
+            const div = document.createElement('div');
+            div.className = 'level-box';
+            div.innerHTML = `<span class="text-[9px] w-6 text-slate-600 font-bold uppercase">${name}</span>`;
+            
+            for(let i=0; i<slots; i++) {
+                const s = document.createElement('div');
+                s.className = 'orb-slot transition-all';
+                let arrows = '';
+                if (electrons > i + slots) {
+                    arrows = '↑↓';
+                    s.classList.add('bg-primary/20', 'border-primary/40');
+                } else if (electrons > i) {
+                    arrows = '↑';
+                    s.classList.add('bg-primary/10', 'border-primary/20');
+                }
+                s.textContent = arrows;
+                div.appendChild(s);
+            }
+            elContainer.appendChild(div);
+        });
+    }
+
+    function drawBohrAtom(shells) {
+        orbitalsLayer.innerHTML = '';
+        animFrameIds.forEach(id => cancelAnimationFrame(id));
+        animFrameIds = [];
+
+        const startRadius = 55; 
+        const gap = 35;
+        const shellNames = ['K', 'L', 'M', 'N', 'O', 'P', 'Q'];
+
+        shells.forEach((electronCount, i) => {
+            const radius = startRadius + (i * gap);
+            const diameter = radius * 2;
+            
+            const ring = document.createElement('div');
+            ring.className = 'orbital-ring';
+            ring.style.width = `${diameter}px`;
+            ring.style.height = `${diameter}px`;
+            
+            const label = document.createElement('div');
+            label.className = 'shell-label';
+            label.textContent = shellNames[i];
+            ring.appendChild(label);
+
+            const electrons = [];
+            for (let e = 0; e < electronCount; e++) {
+                const el = document.createElement('div');
+                el.className = 'electron';
+                ring.appendChild(el);
+                electrons.push({ dom: el, angle: (e / electronCount) * 2 * Math.PI });
+            }
+            
+            orbitalsLayer.appendChild(ring);
+
+            let lastTime = 0;
+            const speed = (0.001 / (i + 1)) * 0.5;
+            
+            function animate(time) {
+                if (isSpinning) {
+                    const dt = time - lastTime;
+                    electrons.forEach(e => {
+                        e.angle += speed * (dt || 16);
+                        const x = radius * Math.cos(e.angle) + radius;
+                        const y = radius * Math.sin(e.angle) + radius;
+                        e.dom.style.left = `${x}px`;
+                        e.dom.style.top = `${y}px`;
+                    });
+                }
+                lastTime = time;
+                animFrameIds.push(requestAnimationFrame(animate));
+            }
+            animFrameIds.push(requestAnimationFrame(animate));
+        });
+    }
+
+    function drawQuantumAtom(el) {
+        orbitalsLayer.innerHTML = '';
+        if (renderer.domElement) orbitalsLayer.appendChild(renderer.domElement);
+
+        scene.clear();
+        
+        // Nucleus
+        const nucGeo = new THREE.SphereGeometry(0.5, 32, 32);
+        const nucMat = new THREE.MeshPhongMaterial({ color: 0xe11d48, emissive: 0x4c0519 });
+        const nuc = new THREE.Mesh(nucGeo, nucMat);
+        scene.add(nuc);
+
+        // Ambient Light
+        const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambient);
+        const directional = new THREE.DirectionalLight(0xffffff, 0.8);
+        directional.position.set(5, 5, 5);
+        scene.add(directional);
+
+        camera.position.z = 10;
+
+        // Simplified Orbitals based on Z
+        const z = el.atomic_number;
+        const totalE = z + currentIonCharge;
+        
+        // 1s
+        addOrbital('s', 1.5, 0x38bdf8, 0.2);
+        
+        // 2s and 2p
+        if (totalE > 2) addOrbital('s', 3, 0x38bdf8, 0.15);
+        if (totalE > 4) {
+             addOrbital('p', 3.5, 0xfacc15, 0.2, 'x');
+             addOrbital('p', 3.5, 0xfacc15, 0.2, 'y');
+             addOrbital('p', 3.5, 0xfacc15, 0.2, 'z');
+        }
+
+        // d-orbitals for transition metals (simplified)
+        if (totalE > 18) {
+            addOrbital('d', 4.5, 0xec4899, 0.15, 'xy');
+            addOrbital('d', 4.5, 0xec4899, 0.15, 'yz');
+        }
+
+        function animate() {
+            if (isSpinning) {
+                scene.rotation.y += 0.005;
+                scene.rotation.z += 0.002;
+            }
+            renderer.render(scene, camera);
+            animFrameIds.push(requestAnimationFrame(animate));
+        }
+        animate();
+    }
+
+    function addOrbital(type, scale, color, opacity, axis) {
+        let geo;
+        if (type === 's') {
+            geo = new THREE.SphereGeometry(scale, 32, 32);
+        } else if (type === 'p') {
+            const group = new THREE.Group();
+            const lobeGeo = new THREE.SphereGeometry(scale/2, 32, 32);
+            const lobeMat = new THREE.MeshPhongMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide });
+            const p1 = new THREE.Mesh(lobeGeo, lobeMat);
+            const p2 = new THREE.Mesh(lobeGeo, lobeMat);
+            p1.position.set(scale/1.5, 0, 0);
+            p2.position.set(-scale/1.5, 0, 0);
+            group.add(p1, p2);
+            if (axis === 'y') group.rotation.z = Math.PI/2;
+            if (axis === 'z') group.rotation.y = Math.PI/2;
+            scene.add(group);
+            return;
+        } else if (type === 'd') {
+            // Clover: four lobes
+            const group = new THREE.Group();
+            const lobeGeo = new THREE.SphereGeometry(scale/2.5, 32, 32);
+            const lobeMat = new THREE.MeshPhongMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide });
+            for(let i=0; i<4; i++) {
+                const p = new THREE.Mesh(lobeGeo, lobeMat);
+                const a = (i * Math.PI) / 2 + Math.PI/4;
+                p.position.set(Math.cos(a) * scale/1.2, Math.sin(a) * scale/1.2, 0);
+                group.add(p);
+            }
+            if (axis === 'yz') group.rotation.y = Math.PI/2;
+            scene.add(group);
+            return;
+        }
+        
+        const mat = new THREE.MeshPhongMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide });
+        const mesh = new THREE.Mesh(geo, mat);
+        scene.add(mesh);
+    }
+
+    // --- Reaction Playground Logic ---
+    const playgroundModal = document.getElementById('playground-modal');
+    let reagents = [];
+    const reactions = {
+        'H+H+O': { name: 'Water', formula: 'H₂O', emoji: '💧', color: 'text-blue-400', count: { 'H': 2, 'O': 1 } },
+        'O+O': { name: 'Molecular Oxygen', formula: 'O₂', emoji: '🌬️', color: 'text-blue-200', count: { 'O': 2 } },
+        'H+H': { name: 'Molecular Hydrogen', formula: 'H₂', emoji: '🎈', color: 'text-slate-100', count: { 'H': 2 } },
+        'H+Cl': { name: 'Hydrochloric Acid', formula: 'HCl', emoji: '🧪', color: 'text-emerald-400', count: { 'H': 1, 'Cl': 1 } },
+        'Cl+Na': { name: 'Sodium Chloride', formula: 'NaCl', emoji: '🧂', color: 'text-white', count: { 'Na': 1, 'Cl': 1 } },
+        'C+O+O': { name: 'Carbon Dioxide', formula: 'CO₂', emoji: '🫧', color: 'text-slate-300', count: { 'C': 1, 'O': 2 } },
+        'H+H+H+N': { name: 'Ammonia', formula: 'NH₃', emoji: '🧴', color: 'text-amber-200', count: { 'N': 1, 'H': 3 } },
+        'H+H+Be': { name: 'Beryllium Hydride', formula: 'BeH₂', emoji: '🛡️', color: 'text-slate-400', count: { 'Be': 1, 'H': 2 } },
+        'C+H+H+H+H': { name: 'Methane', formula: 'CH₄', emoji: '🔥', color: 'text-orange-300', count: { 'C': 1, 'H': 4 } },
+        'C+C+H+H+H+H+H+H': { name: 'Ethane', formula: 'C₂H₆', emoji: '⛽', color: 'text-slate-200', count: { 'C': 2, 'H': 6 } },
+        'C+C+H+H+H+H+H+H+O': { name: 'Ethanol', formula: 'C₂H₅OH', emoji: '🍷', color: 'text-rose-200', count: { 'C': 2, 'H': 6, 'O': 1 } },
+        'H+H+O+O': { name: 'Hydrogen Peroxide', formula: 'H₂O₂', emoji: '🧴', color: 'text-blue-100', count: { 'H': 2, 'O': 2 } }
+    };
+
+    document.getElementById('btn-playground').addEventListener('click', openPlayground);
+    document.getElementById('close-playground').addEventListener('click', () => {
+        const cont = document.getElementById('playground-cont');
+        cont.classList.add('scale-95', 'opacity-0');
+        cont.classList.remove('scale-100', 'opacity-100');
+        setTimeout(() => playgroundModal.classList.add('hidden'), 500);
+    });
+
+    function openPlayground() {
+        playgroundModal.classList.remove('hidden');
+        renderPlaygroundElements();
+        logReaction("System ready... Select reagents.");
+        const cont = document.getElementById('playground-cont');
+        setTimeout(() => {
+            cont.classList.remove('scale-95', 'opacity-0');
+            cont.classList.add('scale-100', 'opacity-100');
+        }, 10);
+
+        // Init Search
+        const searchInput = document.getElementById('playground-search');
+        if (searchInput) {
+            searchInput.oninput = (e) => {
+                const term = e.target.value.toLowerCase();
+                const filtered = availableElements.filter(el => 
+                    el.name.toLowerCase().includes(term) || el.symbol.toLowerCase().includes(term)
+                );
+                renderPlaygroundElements(filtered);
+            };
+        }
+    }
+
+    function getValence(Z) {
+        const shells = calculateShells(Z);
+        return shells[shells.length - 1] || 0;
+    }
+
+    function renderPlaygroundElements(elementsToRender = availableElements) {
+        const container = document.getElementById('playground-list');
+        const countDisplay = document.getElementById('library-count');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        if (countDisplay) countDisplay.textContent = `${elementsToRender.length} Found`;
+
+        if (elementsToRender.length === 0) {
+            container.innerHTML = `
+                <div class="col-span-2 py-10 text-center">
+                    <div class="text-2xl opacity-20 mb-2">🔍</div>
+                    <p class="text-[10px] text-slate-600 font-black uppercase tracking-widest">No matching elements</p>
+                </div>
+            `;
+            return;
+        }
+
+        elementsToRender.forEach(el => {
+            const div = document.createElement('div');
+            
+            // Porting color-coding logic
+            let colorClass = 'border-white/5 text-slate-400 group-hover:text-primary group-hover:border-primary/30';
+            let symbolColor = 'text-slate-500';
+            
+            if (el.category.includes('Nonmetal') || el.category.includes('Halogen')) {
+                colorClass = 'border-emerald-500/10 bg-emerald-500/5 text-emerald-400/60 group-hover:border-emerald-500/40 group-hover:bg-emerald-500/10';
+                symbolColor = 'text-emerald-500';
+            } else if (el.category.includes('Metal')) {
+                colorClass = 'border-blue-500/10 bg-blue-500/5 text-blue-400/60 group-hover:border-blue-500/40 group-hover:bg-blue-500/10';
+                symbolColor = 'text-blue-500';
+            } else if (el.category.includes('Noble Gas')) {
+                colorClass = 'border-purple-500/10 bg-purple-500/5 text-purple-400/60 group-hover:border-purple-500/40 group-hover:bg-purple-500/10';
+                symbolColor = 'text-purple-500';
+            }
+
+            div.className = `group relative p-3 rounded-2xl border bg-dark-900/40 cursor-pointer hover:scale-[1.05] active:scale-95 transition-all flex flex-col items-center gap-1 text-center overflow-hidden ${colorClass}`;
+            
+            div.innerHTML = `
+                <div class="absolute top-1 right-2 text-[8px] font-black opacity-30">#${el.atomic_number}</div>
+                <div class="text-2xl font-black ${symbolColor} transition-transform group-hover:scale-110">${el.symbol}</div>
+                <div class="text-[9px] font-black uppercase tracking-tighter truncate w-full group-hover:text-white transition-colors">${el.name}</div>
+                <div class="text-[7px] opacity-40 font-bold uppercase tracking-widest mt-0.5">${el.category.split(',')[0]}</div>
+            `;
+            div.addEventListener('click', () => {
+                addReagent(el);
+                // Visual feedback on click
+                div.classList.add('ring-2', 'ring-primary/50');
+                setTimeout(() => div.classList.remove('ring-2', 'ring-primary/50'), 300);
+            });
+            container.appendChild(div);
+        });
+    }
+
+    function addReagent(el) {
+        if (reagents.length >= 12) {
+            logReaction("ERROR: Stage capacity reached. Max 12 atoms.");
+            return;
+        }
+        reagents.push(el);
+        renderReagentChips();
+    }
+
+    function renderReagentChips() {
+        const container = document.getElementById('reagent-slots');
+        const emptyMsg = document.getElementById('empty-reagents-msg');
+        
+        // Clear existing chips but keep empty message for now
+        Array.from(container.querySelectorAll('.reagent-chip')).forEach(c => c.remove());
+        
+        if (reagents.length > 0) {
+            emptyMsg.classList.add('hidden');
+            document.getElementById('btn-react').disabled = false;
+        } else {
+            emptyMsg.classList.remove('hidden');
+            document.getElementById('btn-react').disabled = true;
+        }
+
+        reagents.forEach((el, idx) => {
+            const chip = document.createElement('div');
+            chip.className = 'reagent-chip group flex items-center gap-2 px-3 py-2 bg-primary rounded-xl border border-white/20 text-white font-black text-xs shadow-lg animate-in zoom-in-50 duration-300';
+            chip.innerHTML = `
+                <span>${el.symbol}</span>
+                <button class="hover:text-rose-400 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            chip.querySelector('button').addEventListener('click', (e) => {
+                e.stopPropagation();
+                reagents.splice(idx, 1);
+                renderReagentChips();
+            });
+            container.appendChild(chip);
+        });
+    }
+
+    document.getElementById('btn-clear-react').addEventListener('click', clearReagents);
+    function clearReagents() {
+        reagents = [];
+        renderReagentChips();
+        document.getElementById('product-molecule').classList.add('scale-0');
+        
+        // Remove all reaction atoms
+        const stage = document.getElementById('reaction-stage');
+        Array.from(stage.querySelectorAll('.reaction-atom')).forEach(a => a.remove());
+    }
+
+    document.getElementById('btn-react').addEventListener('click', runReaction);
+    function runReaction() {
+        if (reagents.length < 2) return;
+
+        const symbols = reagents.map(r => r.symbol).sort();
+        const key = symbols.join('+');
+        const match = reactions[key];
+
+        logReaction(`Fusion protocol: Merging ${symbols.join(' + ')}...`);
+
+        // Create atoms on stage
+        const stage = document.getElementById('reaction-stage');
+        const product = document.getElementById('product-molecule');
+        
+        // Clear previous
+        Array.from(stage.querySelectorAll('.reaction-atom')).forEach(a => a.remove());
+        product.classList.add('scale-0');
+
+        const atomElements = [];
+        reagents.forEach((el, i) => {
+            const atom = document.createElement('div');
+            atom.className = 'reaction-atom absolute transition-all duration-1000 transform opacity-0 z-10';
+            const color = el.category.includes('Metal') ? 'from-rose-500 to-purple-800' : 'from-primary to-blue-700';
+            atom.innerHTML = `<div class="w-16 h-16 rounded-full bg-gradient-to-br ${color} flex items-center justify-center font-black text-white shadow-2xl text-xl ring-4 ring-white/10">${el.symbol}</div>`;
+            
+            // Random start position around the perimeter
+            const angle = (Math.PI * 2 / reagents.length) * i;
+            const dist = 200;
+            const x = Math.cos(angle) * dist;
+            const y = Math.sin(angle) * dist;
+            
+            atom.style.transform = `translate(${x}px, ${y}px)`;
+            stage.appendChild(atom);
+            atomElements.push(atom);
+        });
+
+        // Step 1: Fade in and move to start positions
+        setTimeout(() => {
+            atomElements.forEach(a => a.classList.remove('opacity-0'));
+            
+            // Step 2: Merge into center
+            setTimeout(() => {
+                atomElements.forEach(a => {
+                    a.style.transform = `translate(0, 0) scale(1.5)`;
+                    a.classList.add('blur-lg');
+                });
+
+                // Step 3: Show product or error
+                setTimeout(() => {
+                    atomElements.forEach(a => {
+                        a.classList.add('opacity-0', 'scale-0');
+                    });
+
+                    if (match) {
+                        document.getElementById('molecule-name').textContent = match.name;
+                        document.getElementById('molecule-formula').textContent = match.formula;
+                        document.getElementById('molecule-emoji').textContent = match.emoji;
+                        product.className = `absolute transform scale-100 transition-all duration-1000 text-center z-20`;
+                        logReaction(`FUSION SUCCESS: Stability achieved for ${match.name}.`);
+                    } else {
+                        // Better feedback
+                        const counts = {};
+                        symbols.forEach(s => counts[s] = (counts[s] || 0) + 1);
+                        
+                        let hint = "FUSION ERROR: High energy state unstable.";
+                        if (symbols.length === 2 && symbols[0] === 'H' && symbols[1] === 'O') {
+                            hint = "FUSION ERROR: Incomplete stoichiometry. Water (H₂O) requires 2 Hydrogen atoms.";
+                        } else if (counts['C'] === 2 && counts['H'] === 5 && counts['O'] === 1) {
+                            hint = "FUSION ERROR: Almost Ethanol! Requires 6 Hydrogen atoms total ($C_2H_5OH$).";
+                        } else if (symbols.includes('He') || symbols.includes('Ne') || symbols.includes('Ar')) {
+                            hint = "FUSION ERROR: Noble gases rarely form stable bonds under laboratory conditions.";
+                        }
+                        
+                        logReaction(hint);
+                        stage.classList.add('animate-shake');
+                        setTimeout(() => stage.classList.remove('animate-shake'), 500);
+                    }
+                }, 700);
+            }, 1000);
+        }, 100);
+    }
+
+    function logReaction(msg) {
+        const log = document.getElementById('reaction-log');
+        log.innerHTML += `<div>> ${msg}</div>`;
+        log.scrollTop = log.scrollHeight;
+    }
+</script>
+{% endblock %}

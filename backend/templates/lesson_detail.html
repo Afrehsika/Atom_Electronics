@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ lesson.title }} - ChemLearn{% endblock %}
+
+{% block extra_head %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4, .font-outfit { font-family: 'Outfit', sans-serif; }
+        
+        .content-area img {
+            border-radius: 1.5rem;
+            margin: 2rem 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .content-area h3 {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: #f8fafc;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #3b82f6;
+            padding-left: 1rem;
+        }
+        
+        .content-area p {
+            font-size: 1rem;
+            line-height: 1.75;
+            color: #94a3b8;
+            margin-bottom: 1.5rem;
+        }
+
+        .simulation-box {
+            background: #0f172a;
+            border: 2px dashed rgba(59, 130, 246, 0.2);
+            border-radius: 2rem;
+            padding: 3rem;
+            text-align: center;
+            margin: 3rem 0;
+        }
+        
+        .quiz-option {
+            transition: all 0.2s ease;
+        }
+        
+        .quiz-option:hover {
+            transform: scale(1.02);
+            background: rgba(59, 130, 246, 0.1) !important;
+            border-color: rgba(59, 130, 246, 0.4) !important;
+        }
+
+        .quiz-option.selected {
+            background: #3b82f6 !important;
+            border-color: #2563eb !important;
+            color: white !important;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12 px-4">
+    <div class="mb-12">
+        <a href="{% url 'learning' %}" class="inline-flex items-center text-slate-500 hover:text-white transition-colors text-xs font-black uppercase tracking-widest mb-8">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            Back to Roadmap
+        </a>
+        <h1 class="text-5xl font-black text-white tracking-tighter mb-4">{{ lesson.title }}</h1>
+        <div class="flex items-center gap-4">
+            <span class="px-3 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-black uppercase rounded-lg">Module {{ lesson.order }}</span>
+            <span class="text-slate-500 text-xs font-bold">Estimated Time: 15 mins</span>
+        </div>
+    </div>
+
+    <!-- Lesson Content -->
+    <div class="content-area mb-24">
+        {{ lesson.content|safe }}
+        
+        {% if lesson.order == 3 %}
+        <div class="simulation-box">
+             <div class="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+             </div>
+             <h4 class="text-white font-black text-xl mb-2">Interactive PN Junction Simulation</h4>
+             <p class="text-slate-500 text-sm max-w-sm mx-auto mb-6">Experiment with carrier concentration and bias voltage in this interactive module.</p>
+             <button class="px-8 py-3 bg-blue-600 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg">Launch Simulator</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Quizzes Section -->
+    <div class="border-t border-white/5 pt-16" id="quiz-section">
+        <h2 class="text-3xl font-black text-white mb-8">Lesson Assessment</h2>
+        
+        <div class="space-y-12">
+            {% for quiz in lesson.quizzes.all %}
+            <div class="bg-dark-800/40 p-10 rounded-[2.5rem] border border-white/5" id="quiz-{{ quiz.id }}">
+                <div class="flex items-center justify-between mb-8">
+                     <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Question {{ forloop.counter }}</span>
+                     <span class="text-amber-500 font-bold text-xs">{{ quiz.xp_reward }} XP</span>
+                </div>
+                <p class="text-xl font-bold text-white mb-8 leading-relaxed">{{ quiz.question }}</p>
+                
+                <div class="grid grid-cols-1 gap-4">
+                    {% for option in quiz.options %}
+                    <button class="quiz-option text-left p-6 rounded-2xl bg-dark-950/60 border border-white/5 text-slate-400 font-bold" onclick="selectOption(this, {{ quiz.id }}, {{ forloop.counter0 }})">
+                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-dark-900 border border-white/5 mr-4 font-black text-xs">{{ forloop.counter|yesno:"A,B,C,D" }}</span>
+                        {{ option }}
+                    </button>
+                    {% endfor %}
+                </div>
+                
+                <div class="mt-8 flex justify-end">
+                    <button class="px-8 py-3 bg-primary text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg disabled:opacity-30 disabled:grayscale transition-all" onclick="submitAnswer({{ quiz.id }}, {{ quiz.correct_option_index }})" id="submit-{{ quiz.id }}" disabled>Check Answer</button>
+                </div>
+                
+                <div id="feedback-{{ quiz.id }}" class="mt-6 hidden p-4 rounded-xl text-sm font-bold"></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    let selectedChoices = {};
+
+    function selectOption(btn, quizId, index) {
+        const options = btn.parentElement.querySelectorAll('.quiz-option');
+        options.forEach(opt => opt.classList.remove('selected'));
+        btn.classList.add('selected');
+        
+        selectedChoices[quizId] = index;
+        document.getElementById('submit-' + quizId).disabled = false;
+    }
+
+    function submitAnswer(quizId, correctIndex) {
+        const selected = selectedChoices[quizId];
+        const feedback = document.getElementById('feedback-' + quizId);
+        feedback.classList.remove('hidden', 'bg-emerald-500/10', 'text-emerald-400', 'bg-rose-500/10', 'text-rose-400');
+        
+        if (selected === correctIndex) {
+            feedback.textContent = "Correct! Well done, scientist!";
+            feedback.classList.add('bg-emerald-500/10', 'text-emerald-400');
+            // Prohibited: real API call here for brevity, assuming successful XP gain
+        } else {
+            feedback.textContent = "Not quite. Review the content above and try again.";
+            feedback.classList.add('bg-rose-500/10', 'text-rose-400');
+        }
+    }
+</script>
+{% endblock %}

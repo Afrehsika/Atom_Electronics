@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+
+{% block title %}Periodic Table - ChemLearn{% endblock %}
+
+{% block content %}
+<div class="flex flex-col items-center w-full fade-in">
+    <div class="w-full mb-8 flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">Interactive Periodic Table</h1>
+            <p class="text-slate-400 mt-2">Explore the elements and discover their properties.</p>
+        </div>
+        
+        <!-- Legend Placeholder -->
+        <div class="hidden md:flex flex-wrap gap-2 text-xs">
+            <span class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">Alkali Metal</span>
+            <span class="px-2 py-1 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">Alkaline Earth Metal</span>
+            <span class="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Nonmetal</span>
+            <span class="px-2 py-1 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">Halogen</span>
+            <span class="px-2 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">Noble Gas</span>
+        </div>
+    </div>
+
+    <!-- The Grid Container -->
+    <div class="w-full overflow-x-auto pb-6">
+        <div id="periodic-table-grid" class="grid gap-1 min-w-[1000px] relative" style="grid-template-columns: repeat(18, minmax(60px, 1fr)); grid-template-rows: repeat(10, minmax(70px, 1fr));">
+            <!-- Loading State -->
+            <div class="absolute inset-0 flex items-center justify-center bg-dark-900/50 backdrop-blur-sm z-10" id="loading-overlay">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+            
+            <!-- Grid items will be injected here by JS -->
+        </div>
+    </div>
+
+    <!-- Element Detail Modal/Panel (Hidden by default) -->
+    <div id="element-detail-panel" class="fixed inset-y-0 right-0 w-full md:w-96 bg-dark-800 border-l border-dark-700 shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out z-50 flex flex-col">
+        <div class="p-4 border-b border-dark-700 flex justify-between items-center bg-dark-900/50">
+            <h2 class="text-xl font-bold text-white">Element Details</h2>
+            <button id="close-panel-btn" class="text-slate-400 hover:text-white p-2 rounded-full hover:bg-dark-700 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="p-6 flex-grow overflow-y-auto" id="element-detail-content">
+            <!-- Detail content injected via JS -->
+            <div class="text-center text-slate-500 mt-10">Select an element to view details.</div>
+        </div>
+        <div class="p-4 border-t border-dark-700 bg-dark-900/50 flex space-x-3 gap-2">
+            <button class="flex-1 bg-primary hover:bg-emerald-600 text-white font-medium py-2 px-4 rounded-md transition-colors shadow-lg shadow-primary/20">
+                Simulation Setup
+            </button>
+            <button class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-medium py-2 px-4 rounded-md transition-colors hover:shadow-lg">
+                View Lessons
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Constants for rendering the grid
+    const ELEMENT_CATEGORY_COLORS = {
+        'Alkali Metal': 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30 hover:border-rose-500/50',
+        'Alkaline Earth Metal': 'bg-orange-500/20 text-orange-300 border-orange-500/30 hover:bg-orange-500/30 hover:border-orange-500/50',
+        'Transition Metal': 'bg-amber-500/20 text-amber-300 border-amber-500/30 hover:bg-amber-500/30 hover:border-amber-500/50',
+        'Post-transition Metal': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30 hover:bg-yellow-500/30 hover:border-yellow-500/50',
+        'Metalloid': 'bg-lime-500/20 text-lime-300 border-lime-500/30 hover:bg-lime-500/30 hover:border-lime-500/50',
+        'Nonmetal': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30 hover:border-emerald-500/50',
+        'Halogen': 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30 hover:border-blue-500/50',
+        'Noble Gas': 'bg-purple-500/20 text-purple-300 border-purple-500/30 hover:bg-purple-500/30 hover:border-purple-500/50',
+        'Lanthanide': 'bg-pink-500/20 text-pink-300 border-pink-500/30 hover:bg-pink-500/30 hover:border-pink-500/50',
+        'Actinide': 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30 hover:bg-fuchsia-500/30 hover:border-fuchsia-500/50',
+        'Unknown': 'bg-slate-700/50 text-slate-300 border-slate-600 hover:bg-slate-600 hover:border-slate-500'
+    };
+
+    const CATEGORY_DESCRIPTIONS = {
+        'Alkali Metal': 'Alkali metals are highly reactive, electropositive monovalent metals found in Group 1. They readily lose their outermost electron to form cations with a 1+ charge.',
+        'Alkaline Earth Metal': 'Alkaline earth metals are reactive, electropositive divalent metals found in Group 2. They readily lose their two outermost electrons to form cations with a 2+ charge.',
+        'Transition Metal': 'Transition metals form the d-block of the periodic table. They are characterized by partially filled d sub-shells, allowing them to form colored compounds and exhibit variable oxidation states.',
+        'Post-transition Metal': 'Post-transition metals are soft (or brittle) metals with poor mechanical strength and melting points lower than those of the transition metals.',
+        'Metalloid': 'Metalloids have properties intermediate between those of metals and solid nonmetals. They are crucial semi-conductors in modern electronics.',
+        'Nonmetal': 'Nonmetals are generally volatile, have low elasticity, and are good insulators of heat and electricity. They tend to gain or share electrons in reactions.',
+        'Halogen': 'Halogens are highly reactive nonmetals in Group 17, needing only one electron to complete their outer shell. They form strongly acidic compounds with hydrogen.',
+        'Noble Gas': 'Noble gases are odorless, colorless, monatomic gases in Group 18 with very low chemical reactivity due to having a full, stable valence electron shell.',
+        'Lanthanide': 'Lanthanides are soft, reactive, silvery-white "rare earth" metals found in the f-block that exhibit similar chemical properties to one another.',
+        'Actinide': 'Actinides are heavy, radioactive f-block metals. Most are synthetic (man-made) and do not occur naturally on Earth.'
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const grid = document.getElementById('periodic-table-grid');
+        const overlay = document.getElementById('loading-overlay');
+        const detailPanel = document.getElementById('element-detail-panel');
+        const detailContent = document.getElementById('element-detail-content');
+        const closePanelBtn = document.getElementById('close-panel-btn');
+
+        // Close panel logic
+        closePanelBtn.addEventListener('click', () => {
+            detailPanel.classList.add('translate-x-full');
+        });
+
+        const renderElementCard = (element) => {
+            const el = document.createElement('div');
+            
+            // Map category to color scheme, default if unknown
+            const colorClasses = ELEMENT_CATEGORY_COLORS[element.category] || ELEMENT_CATEGORY_COLORS['Unknown'];
+
+            el.className = `p-1 border rounded-md flex flex-col items-center justify-center cursor-pointer transition-all duration-200 hover-lift ${colorClasses}`;
+            
+            // Positioning in the CSS grid based on period/group (1-indexed)
+            el.style.gridColumn = element.group;
+            el.style.gridRow = element.period;
+
+            el.innerHTML = `
+                <span class="text-[10px] self-start opacity-70 w-full block ml-1">${element.atomic_number}</span>
+                <span class="text-xl font-bold leading-none my-1">${element.symbol}</span>
+                <span class="text-[9px] truncate w-full text-center opacity-80">${element.name}</span>
+            `;
+
+            // On click handler for the element panel
+            el.addEventListener('click', () => {
+                showElementDetails(element);
+            });
+
+            return el;
+        };
+
+        const showElementDetails = (element) => {
+            const colorClasses = ELEMENT_CATEGORY_COLORS[element.category] || ELEMENT_CATEGORY_COLORS['Unknown'];
+            
+            // Calculate fundamental particles (assuming neutral atom and most common isotope approximation)
+            const protons = element.atomic_number;
+            const electrons = element.atomic_number;
+            const neutrons = Math.round(element.atomic_mass) - element.atomic_number;
+            
+            detailContent.innerHTML = `
+                <div class="flex flex-col items-center mb-6">
+                    <div class="w-24 h-24 rounded-lg flex flex-col flex-shrink-0 items-center justify-center border shadow-xl ${colorClasses}">
+                        <span class="text-sm self-start ml-2 opacity-80">${element.atomic_number}</span>
+                        <span class="text-4xl font-bold">${element.symbol}</span>
+                    </div>
+                    <h3 class="text-2xl font-bold mt-4 text-white">${element.name}</h3>
+                    <span class="px-3 py-1 mt-2 text-xs rounded-full border ${colorClasses.split(' ').slice(0,3).join(' ')}">${element.category}</span>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-2 mt-4 mb-6">
+                    <div class="bg-dark-900 border border-dark-700 rounded-lg p-2 flex flex-col items-center">
+                        <span class="text-xs text-slate-400 font-medium mb-1">Protons</span>
+                        <span class="text-lg font-bold text-rose-400">${protons}</span>
+                    </div>
+                    <div class="bg-dark-900 border border-dark-700 rounded-lg p-2 flex flex-col items-center">
+                        <span class="text-xs text-slate-400 font-medium mb-1">Neutrons</span>
+                        <span class="text-lg font-bold text-slate-300">${neutrons}</span>
+                    </div>
+                    <div class="bg-dark-900 border border-dark-700 rounded-lg p-2 flex flex-col items-center">
+                        <span class="text-xs text-slate-400 font-medium mb-1">Electrons</span>
+                        <span class="text-lg font-bold text-blue-400">${electrons}</span>
+                    </div>
+                </div>
+                
+                <div class="space-y-4 text-sm mt-6">
+                    <div class="flex justify-between border-b border-dark-700 pb-2">
+                        <span class="text-slate-400">Atomic Mass</span>
+                        <span class="text-white font-medium">${element.atomic_mass.toFixed(4)} u</span>
+                    </div>
+                    <div class="flex justify-between border-b border-dark-700 pb-2">
+                        <span class="text-slate-400">Group / Period</span>
+                        <span class="text-white font-medium">${element.group} / ${element.period}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-dark-700 pb-2">
+                        <span class="text-slate-400">Electron Config</span>
+                        <span class="text-white font-medium font-mono text-xs">${element.electron_configuration || '-'}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-dark-700 pb-2">
+                        <span class="text-slate-400">Electronegativity</span>
+                        <span class="text-white font-medium">${element.electronegativity || '-'}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-dark-700 pb-2">
+                        <span class="text-slate-400">Phase at STP</span>
+                        <span class="text-white font-medium capitalize">${element.phase || '-'}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-dark-700 pb-2">
+                        <span class="text-slate-400">Density</span>
+                        <span class="text-white font-medium">${element.density ? element.density + ' g/cm³' : '-'}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-dark-700 pb-2">
+                        <span class="text-slate-400">Melting Point</span>
+                        <span class="text-white font-medium">${element.melt ? element.melt + ' K' : '-'}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-dark-700 pb-2">
+                        <span class="text-slate-400">Boiling Point</span>
+                        <span class="text-white font-medium">${element.boil ? element.boil + ' K' : '-'}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-dark-700 pb-2">
+                        <span class="text-slate-400">Atomic Radius</span>
+                        <span class="text-white font-medium">${element.atomic_radius ? element.atomic_radius + ' pm' : '-'}</span>
+                    </div>
+                </div>
+                
+                <div class="mt-8 border-t border-dark-700 pt-6">
+                    <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">Periodic Table Context</h4>
+                    <p class="text-slate-400 text-sm leading-relaxed mb-4">
+                        <strong class="text-white">${element.name}</strong> is located in <strong class="text-primary">Period ${element.period}</strong> and <strong class="text-primary">Group ${element.group}</strong> of the periodic table. 
+                    </p>
+                    <div class="bg-dark-900 border border-dark-700 rounded-lg p-4 text-sm text-slate-400">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="px-2 py-0.5 mt-2 text-[10px] rounded-full border ${colorClasses.split(' ').slice(0,3).join(' ')}">${element.category}</span>
+                        </div>
+                        <p class="leading-relaxed">
+                            ${CATEGORY_DESCRIPTIONS[element.category] || 'This element does not fit into one of the standard major categories.'}
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="mt-8 border-t border-dark-700 pt-6">
+                    <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-2">Description</h4>
+                    <p class="text-slate-400 text-sm leading-relaxed">${element.description || 'No description available for this element yet.'}</p>
+                </div>
+            `;
+            
+            // Slide in the panel
+            detailPanel.classList.remove('translate-x-full');
+        };
+
+        try {
+            // Fetch elements via DRF API
+            const response = await fetchAPI('/api/elements/');
+            // Handle paginated responses from DRF (results) vs direct list
+            const elements = response.results ? response.results : response;
+            
+            // Remove overlay
+            overlay.style.display = 'none';
+
+            // Empty the grid (except overlay)
+            const children = Array.from(grid.children);
+            children.forEach(child => {
+                if (child.id !== 'loading-overlay') grid.removeChild(child);
+            });
+
+            // Populate the grid
+            elements.forEach(element => {
+                // Only render elements that have a proper group/period to fit in standard grid
+                if (element.group && element.period) {
+                    grid.appendChild(renderElementCard(element));
+                }
+            });
+
+            // Add gaps logic for standard layout
+            // (Elements 57-71 and 89-103 are typically rendered below the main table)
+            const lanthanidePlaceholder = document.createElement('div');
+            lanthanidePlaceholder.className = "p-1 border rounded-md flex flex-col items-center justify-center bg-dark-800/50 border-dark-600 text-slate-400 text-xs text-center";
+            lanthanidePlaceholder.style.gridColumn = 3;
+            lanthanidePlaceholder.style.gridRow = 6;
+            lanthanidePlaceholder.innerHTML = "57-71<br>*";
+            grid.appendChild(lanthanidePlaceholder);
+
+            const actinidePlaceholder = document.createElement('div');
+            actinidePlaceholder.className = "p-1 border rounded-md flex flex-col items-center justify-center bg-dark-800/50 border-dark-600 text-slate-400 text-xs text-center";
+            actinidePlaceholder.style.gridColumn = 3;
+            actinidePlaceholder.style.gridRow = 7;
+            actinidePlaceholder.innerHTML = "89-103<br>**";
+            grid.appendChild(actinidePlaceholder);
+            
+        } catch (error) {
+            console.error("Failed to load elements", error);
+            overlay.innerHTML = `
+                <div class="text-center bg-dark-800 p-6 rounded-lg border border-rose-500/50 shadow-lg shadow-rose-900/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-rose-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p class="text-rose-400 font-medium">Error loading periodic table data</p>
+                    <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-white rounded transition-colors text-sm">Retry</button>
+                </div>
+            `;
+        }
+    });
+</script>
+{% endblock %}

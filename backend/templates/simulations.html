@@ -1,0 +1,1446 @@
+{% extends 'base.html' %}
+
+{% block title %}Simulations & Crafting - ChemLearn{% endblock %}
+
+{% block content %}
+<style>
+    @keyframes bubble {
+        0% { transform: translateY(0) scale(1); opacity: 0; }
+        10% { opacity: 0.6; }
+        90% { opacity: 0.6; }
+        100% { transform: translateY(-200px) scale(2); opacity: 0; }
+    }
+    .animate-bubble {
+        animation: bubble 2s ease-in infinite;
+    }
+</style>
+<div class="w-full fade-in flex flex-col h-[calc(100vh-8rem)]">
+    <!-- Header tabs -->
+    <div class="flex space-x-4 mb-6 border-b border-dark-700">
+        <button id="tab-vsepr" class="pb-3 px-4 font-bold text-primary border-b-2 border-primary transition-colors">
+            Molecule Modeler (VSEPR)
+        </button>
+        <button id="tab-crafting" class="pb-3 px-4 font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition-colors">
+            Macro Materials Crafter
+        </button>
+        <button id="tab-breaker" class="pb-3 px-4 font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition-colors">
+            Bond Breaker (Reaction Lab)
+        </button>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-6 flex-grow h-0 min-h-[500px]">
+        <!-- SHARED Left Column: Element Selector -->
+        <div class="w-full lg:w-1/4 flex flex-col gap-6 h-full shrink-0">
+            <div class="bg-dark-800 rounded-xl border border-dark-700 p-4 flex-grow shadow-lg flex flex-col h-0 min-h-[350px]">
+                <h2 class="font-bold text-white mb-4">Add Atoms</h2>
+                <input type="text" id="vsepr-search" placeholder="Search elements..." class="w-full bg-dark-900 border border-dark-600 rounded p-2 text-sm text-slate-200 mb-4 focus:ring-1 focus:ring-primary focus:border-primary shrink-0">
+                
+                <div class="overflow-y-auto flex-grow pr-2 custom-scrollbar" id="vsepr-elements-list">
+                    <div class="flex items-center justify-center p-4"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div></div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-dark-700 shrink-0">
+                    <button id="clear-vsepr-btn" class="w-full bg-dark-900 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 border border-dark-600 font-medium py-2 rounded transition-colors text-sm">
+                        Clear Workspace
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT TABBED AREA -->
+        <div class="flex-grow h-full overflow-hidden">
+            <!-- TAB 1: MOLECULE MODELER -->
+            <div id="view-vsepr" class="flex flex-col lg:flex-row gap-6 h-full">
+                <!-- Middle Column: Interactive Canvas -->
+                <div class="flex-grow flex flex-col gap-6 h-full relative">
+                    <div class="bg-dark-900 rounded-xl border border-dark-700 flex-grow flex flex-col relative shadow-inner overflow-hidden">
+                        <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(#38bdf8 1px, transparent 1px); background-size: 20px 20px;"></div>
+                        
+                        <!-- Controls Overlay -->
+                        <div class="absolute top-4 right-4 z-20 flex bg-dark-800 p-1 rounded-lg border border-dark-600 shadow-lg text-sm">
+                            <button id="view-toggle-3d" class="px-3 py-1.5 rounded bg-primary text-white font-medium transition-colors">VSEPR 3D</button>
+                            <button id="view-toggle-lewis" class="px-3 py-1.5 rounded text-slate-400 hover:text-white transition-colors">Lewis (2D)</button>
+                        </div>
+
+                        <!-- Molecule Canvas -->
+                        <div id="vsepr-canvas-container" class="relative w-full h-full flex items-center justify-center z-10">
+                            <div id="vsepr-empty-state" class="text-center text-slate-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                                <p class="text-sm">Add a Central Atom and surrounding Ligands to build a molecule.</p>
+                            </div>
+
+                            <div id="vsepr-molecule-layer" class="relative w-full h-full hidden">
+                                <svg id="bonds-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0"></svg>
+                                <div id="atoms-html" class="absolute inset-0 w-full h-full z-10"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Results Panel -->
+                <div class="w-full lg:w-1/3 flex flex-col gap-6 h-full shrink-0">
+                    <div class="bg-dark-800 rounded-xl border border-dark-700 p-5 flex-grow shadow-lg overflow-y-auto">
+                        <h2 class="font-bold text-white mb-2 border-b border-dark-700 pb-2 flex justify-between items-center">
+                            <span>Molecule Analysis</span>
+                        </h2>
+                        
+                        <div id="vsepr-analysis-placeholder" class="text-slate-500 text-sm text-center py-8">
+                            Build a valid molecule to see VSEPR analysis, state of matter estimation, and compound names.
+                        </div>
+
+                        <div id="vsepr-analysis-content" class="hidden space-y-5 mt-4">
+                            <div class="text-center">
+                                <h3 id="predicted-name" class="text-2xl font-bold text-emerald-400 mb-1">Water</h3>
+                                <p id="chemical-formula" class="font-mono text-slate-300 text-lg">H₂O</p>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2 text-center text-sm">
+                                <div class="bg-dark-900 border border-dark-700 p-2 rounded">
+                                    <span class="block text-slate-500 text-[10px] uppercase">VSEPR Shape</span>
+                                    <span id="vsepr-shape" class="font-bold text-blue-400">Bent</span>
+                                </div>
+                                <div class="bg-dark-900 border border-dark-700 p-2 rounded">
+                                    <span class="block text-slate-500 text-[10px] uppercase">Bond Angles</span>
+                                    <span id="bond-angle" class="font-bold text-slate-200">~104.5°</span>
+                                </div>
+                                <div class="bg-dark-900 border border-dark-700 p-2 rounded">
+                                    <span class="block text-slate-500 text-[10px] uppercase">Polarity</span>
+                                    <span id="molecule-polarity" class="font-bold text-rose-400">Polar</span>
+                                </div>
+                                <div class="bg-dark-900 border border-dark-700 p-2 rounded">
+                                    <span class="block text-slate-500 text-[10px] uppercase">Expected State (STP)</span>
+                                    <span id="state-matter" class="font-bold text-white">Liquid</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-dark-900 border border-dark-600 rounded p-3 text-sm font-sans">
+                                <ul class="text-slate-300 space-y-1">
+                                    <li class="flex justify-between"><span>Valence e⁻:</span> <strong id="val-electrons">8</strong></li>
+                                    <li class="flex justify-between"><span>Bonding Pairs:</span> <strong id="bond-pairs">2</strong></li>
+                                    <li class="flex justify-between"><span>Lone Pairs (Central):</span> <strong id="lone-pairs">2</strong></li>
+                                    <li class="flex justify-between"><span>Steric Number:</span> <strong id="steric-num">4</strong></li>
+                                    <li class="flex justify-between"><span>Octet Rule (Central):</span> <strong id="octet-status" class="text-emerald-400">Satisfied</strong></li>
+                                </ul>
+                            </div>
+
+                            <p id="molecule-description" class="text-xs text-slate-400 leading-relaxed"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+    <!-- TAB 2: MACRO MATERIALS CRAFTER -->
+    <div id="view-crafting" class="hidden flex-col lg:flex-row gap-6 h-[calc(100vh-12rem)] min-h-[500px]">
+        <!-- Left Column: Recipes -->
+        <div class="w-full lg:w-1/3 flex flex-col gap-6 h-full">
+            <div class="bg-dark-800 rounded-xl border border-dark-700 p-5 flex-grow shadow-lg flex flex-col h-0 min-h-[300px]">
+                <h2 class="font-bold text-white mb-4 flex items-center gap-2 shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd" /></svg>
+                    Crafting Recipes
+                </h2>
+                
+                <!-- Recipe Search -->
+                <div class="mb-4 shrink-0">
+                    <label class="block text-gray-400 text-[10px] font-bold mb-1.5 uppercase tracking-wider opacity-60">Search Recipes</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500">
+                            <i class="fas fa-search text-[10px]"></i>
+                        </span>
+                        <input type="text" id="recipe-search" placeholder="Search Materials..." 
+                               class="w-full bg-dark-800 border border-dark-600 text-slate-200 rounded py-1.5 pl-8 pr-3 focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none text-[11px] transition-all">
+                    </div>
+                </div>
+
+                <!-- Category Filter -->
+                <div class="mb-4 shrink-0">
+                    <select id="recipe-category-filter" class="w-full bg-dark-900 border border-dark-600 rounded p-2 text-xs text-slate-300 focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                        <option value="">All Categories</option>
+                        <option value="Material">Materials & Alloys</option>
+                        <option value="Food">Food & Nutrients</option>
+                        <option value="Medicine">Medicines & Drugs</option>
+                        <option value="Device Part">Device Parts & Tech</option>
+                    </select>
+                </div>
+
+                <div class="overflow-y-auto pr-2 custom-scrollbar space-y-3 flex-grow" id="recipes-list">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Column: The Crafting Bench -->
+        <div class="w-full lg:w-2/3 flex flex-col gap-6 h-full">
+            <div class="bg-dark-900 rounded-xl border border-dark-700 flex-grow shadow-inner p-6 flex flex-col">
+                <div class="text-center mb-6">
+                    <h3 class="text-2xl font-bold text-white mb-2">Macro Crafting Bench</h3>
+                    <p class="text-slate-400 text-sm">Combine elements in specific ratios to build real-world macroscopic objects.</p>
+                </div>
+
+                <div class="flex-grow flex flex-col items-center justify-center relative">
+                    <!-- Cauldron/Bench visual -->
+                    <div id="crafting-bench-visual" class="relative w-64 h-64 border-4 border-dark-600 border-dashed rounded-full flex items-center justify-center bg-dark-800/50 shadow-[0_0_30px_rgba(0,0,0,0.5)_inset] transition-colors">
+                        <span id="bench-placeholder" class="text-slate-500 font-medium z-10">Select a Recipe</span>
+                        
+                        <!-- Recipe visualization nodes -->
+                        <div id="bench-inputs" class="absolute inset-0 pointer-events-none text-white font-bold text-lg hidden">
+                            <!-- Injected by JS based on recipe -->
+                        </div>
+                    </div>
+
+                    <div class="mt-8 flex gap-4 w-full max-w-md">
+                        <button id="craft-btn" disabled class="flex-1 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-3 px-4 rounded-lg shadow-lg shadow-orange-500/20 transition-all transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:filter-none">
+                            Synthesize Material
+                        </button>
+                    </div>
+
+                    <!-- Crafted Result Popup -->
+                    <div id="crafting-result" class="absolute inset-0 bg-dark-900/95 backdrop-blur z-30 hidden flex-col items-center justify-center rounded-xl p-8 text-center scale-95 opacity-0 transition-all duration-300">
+                        <div class="text-6xl mb-4" id="crafted-emoji">🔋</div>
+                        <h2 class="text-3xl font-bold text-amber-400 mb-2" id="crafted-name">Lithium-Ion Battery</h2>
+                        <p class="text-slate-300 mb-4 max-w-md" id="crafted-desc">A rechargeable battery utilizing Lithium Cobalt Oxide cathodes.</p>
+                        
+                        <div class="bg-amber-500/10 border border-amber-500/30 p-4 rounded-lg mb-6 max-w-lg text-left">
+                            <h4 class="text-amber-400 font-bold text-sm uppercase mb-2">Scientific Significance</h4>
+                            <p id="crafted-explanation" class="text-xs text-slate-300 leading-relaxed italic">
+                                <!-- Injected by JS -->
+                                This material demonstrates key principles of chemical potential and electronic properties.
+                            </p>
+                        </div>
+                        
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button id="close-result" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300">
+                                Continue Crafting
+                            </button>
+                            <button onclick="viewStructureInVsepr()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2">
+                                <i class="fas fa-atom"></i> View Structure
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: BOND BREAKER LAB [NEW] -->
+        <div id="view-breaker" class="hidden flex-col gap-6 h-full">
+            <div class="flex flex-col lg:flex-row gap-6 h-full">
+                <!-- Left Tools -->
+                <div class="w-full lg:w-1/4 flex flex-col gap-6">
+                    <div class="bg-dark-800 rounded-xl border border-dark-700 p-5 shadow-lg">
+                        <h3 class="font-bold text-white mb-4">Reactor Controls</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-[10px] text-slate-500 uppercase block mb-2">Energy Source</label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button id="apply-heat" class="p-3 bg-dark-900 border border-dark-600 rounded-lg hover:border-orange-500 hover:text-orange-400 transition-all flex flex-col items-center">
+                                        <span class="text-xl">🔥</span>
+                                        <span class="text-[10px] mt-1">Bunsen Heat</span>
+                                    </button>
+                                    <button id="apply-electricity" class="p-3 bg-dark-900 border border-dark-600 rounded-lg hover:border-blue-500 hover:text-blue-400 transition-all flex flex-col items-center">
+                                        <span class="text-xl">⚡</span>
+                                        <span class="text-[10px] mt-1">Electrolysis</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="pt-4 border-t border-dark-700">
+                                <label class="text-[10px] text-slate-500 uppercase block mb-2">Available Molecules</label>
+                                <div id="decomposable-list" class="space-y-2">
+                                    <div class="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg cursor-pointer hover:bg-blue-500/20 transition-colors flex items-center gap-3">
+                                        <span class="text-xl">💧</span>
+                                        <div>
+                                            <div class="text-xs font-bold text-white">Water (H₂O)</div>
+                                            <div class="text-[10px] text-slate-400">Stable Molecule</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-dark-800 rounded-xl border border-dark-700 p-5 mt-auto">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase mb-2">Scientific Note</h4>
+                        <p class="text-[11px] text-slate-500 leading-relaxed italic">
+                            Bond breaking is an <b>endothermic</b> process. It requires energy to overcome the attractive forces between atoms. In electrolysis, electrical energy drives a non-spontaneous reaction.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Middle Reactor -->
+                <div class="flex-grow flex flex-col bg-dark-900 rounded-xl border border-dark-700 relative overflow-hidden shadow-inner p-6">
+                    <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: linear-gradient(#111827 2px, transparent 2px), linear-gradient(90deg, #111827 2px, transparent 2px); background-size: 40px 40px;"></div>
+                    
+                    <div class="flex justify-between items-center mb-6 relative z-10">
+                        <div>
+                            <h3 class="text-xl font-bold text-white">Bond Breaker Chamber</h3>
+                            <p class="text-xs text-slate-400">Apply energy to dissociate molecular bonds.</p>
+                        </div>
+                        <div id="reactor-status" class="px-3 py-1 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold border border-slate-700 uppercase">Idle</div>
+                    </div>
+
+                    <div id="reactor-canvas" class="flex-grow relative flex items-center justify-center">
+                        <!-- Water Electrolysis Visual [DEFAULT] -->
+                        <div id="electrolysis-scene" class="w-full h-full flex items-center justify-center">
+                            <!-- Beaker -->
+                            <div class="relative w-48 h-64 border-4 border-slate-600/50 border-t-0 rounded-b-2xl bg-blue-500/5 shadow-[inset_0_0_30px_rgba(59,130,246,0.1)]">
+                                <!-- Water Level -->
+                                <div class="absolute bottom-0 left-0 right-0 h-[80%] bg-blue-400/20 rounded-b-xl border-t-2 border-blue-400/50"></div>
+                                
+                                <!-- Electrodes -->
+                                <div class="absolute bottom-4 left-12 w-3 h-48 bg-slate-700 rounded-full border border-slate-600">
+                                    <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full h-8 w-1 bg-slate-600"></div>
+                                    <div id="bubbles-left" class="absolute inset-0 overflow-hidden pointer-events-none"></div>
+                                </div>
+                                <div class="absolute bottom-4 right-12 w-3 h-48 bg-slate-700 rounded-full border border-slate-600">
+                                    <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full h-8 w-1 bg-slate-600"></div>
+                                    <div id="bubbles-right" class="absolute inset-0 overflow-hidden pointer-events-none"></div>
+                                </div>
+                                
+                                <!-- Central Molecule -->
+                                <div id="reactor-molecule" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 scale-125 transition-all duration-1000">
+                                    <div class="relative">
+                                        <div class="w-12 h-12 rounded-full bg-red-500 border-2 border-red-400 flex items-center justify-center text-white font-bold text-xl relative z-10 shadow-lg">O</div>
+                                        <div id="h1" class="absolute -top-4 -left-4 w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-dark-900 font-bold text-xs transition-all duration-500">H</div>
+                                        <div id="h2" class="absolute -top-4 -right-4 w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-dark-900 font-bold text-xs transition-all duration-500">H</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="reaction-progress-bar" class="w-full h-1 bg-dark-800 rounded-full mt-6 overflow-hidden hidden">
+                        <div id="reaction-fill" class="h-full bg-blue-500 w-0 transition-all"></div>
+                    </div>
+                </div>
+
+                <!-- Right Documentation -->
+                <div class="w-full lg:w-1/4 flex flex-col gap-6">
+                    <div class="bg-dark-800 rounded-xl border border-dark-700 p-5 shadow-lg">
+                        <h4 class="font-bold text-slate-300 mb-3 border-b border-dark-700 pb-2">Reaction Data</h4>
+                        <div id="reaction-summary" class="space-y-4">
+                            <div class="text-center text-slate-500 text-xs py-4">
+                                Select a molecule and energy source to begin analysis.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="dissociation-log" class="bg-dark-900 rounded-xl border border-dark-700 p-4 font-mono text-[10px] text-emerald-500 h-48 overflow-y-auto">
+                        <div>> Ready for reaction...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+    /* Styling for VSEPR nodes and bonds */
+    .vsepr-atom {
+        position: absolute;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: white;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        z-index: 20;
+        transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+        cursor: pointer;
+    }
+    
+    .vsepr-atom:hover {
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+    
+    .vsepr-lone-pair {
+        position: absolute;
+        width: 30px;
+        height: 40px;
+        background: radial-gradient(ellipse at center, rgba(96, 165, 250, 0.6) 0%, transparent 70%);
+        transform-origin: bottom center;
+        z-index: 10;
+        transition: all 0.5s ease;
+    }
+    
+    /* VSEPR specific 3D illusion classes */
+    .vsepr-3d .back-bond { opacity: 0.3; stroke-width: 2 !important; stroke-dasharray: 4 4; }
+    .vsepr-3d .front-bond { stroke-width: 8 !important; }
+    .vsepr-3d .flat-bond { stroke-width: 4 !important; }
+    
+    .vsepr-3d .back-atom { filter: brightness(0.6) blur(1px); transform: translate(-50%, -50%) scale(0.8) !important; z-index: 5; }
+    .vsepr-3d .front-atom { filter: brightness(1.2); transform: translate(-50%, -50%) scale(1.2) !important; z-index: 25; }
+</style>
+
+<script>
+    // --- GLOBAL STATE ---
+    let dbElements = [];
+    const VSEPR_State = {
+        atoms: [], // Array of element objects added by user
+        viewMode: '3d', // '3d' or 'lewis'
+        moleculeName: null // Forced name from recipe
+    };
+
+    let CRAFT_RECIPES = [];
+    let selectedRecipe = null;
+    let currentRecipePage = 1;
+    let selectedCategory = '';
+    let currentSearchQuery = '';
+    let currentCraftingRecipe = null; // To hold the recipe that was just crafted
+
+    // --- DOM CACHING ---
+    const tabVsepr = document.getElementById('tab-vsepr');
+    const tabCrafting = document.getElementById('tab-crafting');
+    const tabBreaker = document.getElementById('tab-breaker');
+    const viewVsepr = document.getElementById('view-vsepr');
+    const viewCrafting = document.getElementById('view-crafting');
+    const viewBreaker = document.getElementById('view-breaker');
+
+    // VSEPR DOM
+    const vseprSearch = document.getElementById('vsepr-search');
+    const vseprList = document.getElementById('vsepr-elements-list');
+    const vseprLayer = document.getElementById('vsepr-molecule-layer');
+    const vseprEmptyState = document.getElementById('vsepr-empty-state');
+    const atomsHtml = document.getElementById('atoms-html');
+    const bondsSvg = document.getElementById('bonds-svg');
+    const toggle3D = document.getElementById('view-toggle-3d');
+    const toggleLewis = document.getElementById('view-toggle-lewis');
+    const clearVsepr = document.getElementById('clear-vsepr-btn');
+
+    // Analysis DOM
+    const analysisPlaceholder = document.getElementById('vsepr-analysis-placeholder');
+    const analysisContent = document.getElementById('vsepr-analysis-content');
+    
+    // Crafting DOM
+    const recipesList = document.getElementById('recipes-list');
+    const recipeSearch = document.getElementById('recipe-search');
+    const categoryFilter = document.getElementById('recipe-category-filter');
+    const benchVisual = document.getElementById('crafting-bench-visual');
+    const benchPlaceholder = document.getElementById('bench-placeholder');
+    const benchInputs = document.getElementById('bench-inputs');
+    const craftBtn = document.getElementById('craft-btn');
+    const craftingResult = document.getElementById('crafting-result');
+
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', async () => {
+        setupTabs();
+        
+        try {
+            const res = await fetchAPI('/api/elements/');
+            dbElements = res.results || res;
+            renderVseprList(dbElements);
+        } catch(e) { console.error(e); }
+
+        vseprSearch.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            renderVseprList(dbElements.filter(el => el.name.toLowerCase().includes(term) || el.symbol.toLowerCase().includes(term)));
+        });
+
+        clearVsepr.addEventListener('click', () => {
+            VSEPR_State.atoms = [];
+            updateVseprWorkspace();
+        });
+
+        toggle3D.addEventListener('click', () => { setVseprView('3d'); });
+        toggleLewis.addEventListener('click', () => { setVseprView('lewis'); });
+
+        // Initial Load
+        loadRecipesPage(1);
+
+        // Filters
+        categoryFilter.addEventListener('change', (e) => {
+            loadRecipesPage(1, e.target.value, currentSearchQuery);
+        });
+
+        // Search with Debounce
+        let searchTimeout;
+        recipeSearch.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadRecipesPage(1, selectedCategory, e.target.value);
+            }, 500);
+        });
+
+        // Setup VSEPR Canvas as drop target
+        const vseprContainer = document.getElementById('vsepr-canvas-container');
+        vseprContainer.addEventListener('dragover', (e) => e.preventDefault());
+        vseprContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const droppedData = JSON.parse(e.dataTransfer.getData('application/json'));
+            addAtomToVsepr(droppedData);
+        });
+
+        
+        document.getElementById('close-result').addEventListener('click', () => {
+            closeCraftingPopup();
+            
+            // reset recipe progress
+            if(selectedRecipe) {
+                selectedRecipe.ingredients.forEach(i => i.current = 0);
+                renderRecipes();
+                renderBench();
+            }
+        });
+        
+        craftBtn.addEventListener('click', () => {
+             currentCraftingRecipe = selectedRecipe; // Store the crafted recipe
+             craftingResult.classList.remove('hidden');
+             setTimeout(() => {
+                 craftingResult.classList.remove('scale-95', 'opacity-0');
+                 craftingResult.classList.add('scale-100', 'opacity-100');
+             }, 10);
+        });
+    });
+
+    function setupTabs() {
+        const resetTabClasses = () => {
+            [tabVsepr, tabCrafting, tabBreaker].forEach(t => {
+                t.className = "pb-3 px-4 font-bold text-slate-400 border-b-2 border-transparent hover:text-white transition-colors";
+            });
+            [viewVsepr, viewCrafting, viewBreaker].forEach(v => {
+                v.classList.add('hidden');
+                v.classList.remove('flex');
+            });
+        };
+
+        tabVsepr.addEventListener('click', () => {
+            resetTabClasses();
+            tabVsepr.className = "pb-3 px-4 font-bold text-primary border-b-2 border-primary transition-colors";
+            viewVsepr.classList.remove('hidden');
+            viewVsepr.classList.add('flex');
+        });
+
+        tabCrafting.addEventListener('click', () => {
+            resetTabClasses();
+            tabCrafting.className = "pb-3 px-4 font-bold text-primary border-b-2 border-primary transition-colors";
+            viewCrafting.classList.remove('hidden');
+            viewCrafting.classList.add('flex');
+        });
+
+        tabBreaker.addEventListener('click', () => {
+            resetTabClasses();
+            tabBreaker.className = "pb-3 px-4 font-bold text-primary border-b-2 border-primary transition-colors";
+            viewBreaker.classList.remove('hidden');
+            viewBreaker.classList.add('flex');
+        });
+    }
+
+    // ==========================================
+    // MODULE 1: VSEPR Modeler
+    // ==========================================
+
+    function renderVseprList(elements) {
+        vseprList.innerHTML = '';
+        elements.forEach(el => {
+            const btn = document.createElement('div');
+            
+            // Colors
+            let color = 'border-slate-600 bg-slate-800 text-slate-300';
+            if (el.category.includes('Nonmetal') || el.category.includes('Halogen')) color = 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300';
+            else if (el.category.includes('Metal')) color = 'border-blue-500/50 bg-blue-500/10 text-blue-300';
+            
+            btn.className = `flex items-center justify-between p-2 mb-2 rounded border cursor-pointer hover-lift transition-all transition-transform ${color}`;
+            btn.setAttribute('draggable', 'true');
+            
+            btn.innerHTML = `
+                <div class="flex items-center space-x-2 pointer-events-none">
+                    <div class="w-8 h-8 rounded font-bold flex items-center justify-center bg-dark-900 border border-inherit shadow-inner">
+                        ${el.symbol}
+                    </div>
+                    <div class="text-sm font-bold">${el.name}</div>
+                </div>
+                <div class="text-[10px] uppercase opacity-70 pointer-events-none">Val: ${getValence(el.atomic_number)}</div>
+            `;
+            
+            btn.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('application/json', JSON.stringify(el));
+                btn.classList.add('opacity-50', 'scale-95');
+            });
+            
+            btn.addEventListener('dragend', () => {
+                btn.classList.remove('opacity-50', 'scale-95');
+            });
+
+            btn.addEventListener('click', () => {
+                addAtomToVsepr(el);
+            });
+            
+            vseprList.appendChild(btn);
+        });
+    }
+
+    function addAtomToVsepr(el, fromRecipe = false) {
+        if(VSEPR_State.atoms.length < 10) {
+            if (!fromRecipe) VSEPR_State.moleculeName = null;
+            let newAtom = JSON.parse(JSON.stringify(el)); // clone
+            newAtom._vseprId = Date.now() + Math.random(); 
+            VSEPR_State.atoms.push(newAtom);
+            updateVseprWorkspace();
+        }
+    }
+
+    // Utility: Simple valence electron count based on standard periodic group rules
+    function getValence(Z) {
+        // Safe simplification for main-group elements 1-20
+        if (Z===1 || Z===3 || Z===11 || Z===19) return 1;
+        if (Z===2) return 2; // He
+        if (Z===4 || Z===12 || Z===20) return 2;
+        if (Z===5 || Z===13) return 3;
+        if (Z===6 || Z===14) return 4;
+        if (Z===7 || Z===15) return 5;
+        if (Z===8 || Z===16) return 6;
+        if (Z===9 || Z===17) return 7;
+        if (Z===10 || Z===18) return 8;
+        return 4; // fallback for transitions in demo
+    }
+
+    function setVseprView(mode) {
+        VSEPR_State.viewMode = mode;
+        if(mode === '3d') {
+            toggle3D.className = "px-3 py-1.5 rounded bg-primary text-white font-medium transition-colors";
+            toggleLewis.className = "px-3 py-1.5 rounded text-slate-400 hover:text-white transition-colors bg-transparent";
+            vseprLayer.classList.add('vsepr-3d');
+        } else {
+            toggleLewis.className = "px-3 py-1.5 rounded bg-primary text-white font-medium transition-colors";
+            toggle3D.className = "px-3 py-1.5 rounded text-slate-400 hover:text-white transition-colors bg-transparent";
+            vseprLayer.classList.remove('vsepr-3d');
+        }
+        updateVseprWorkspace(); // redraw
+    }
+
+    // Core Geometry Engine
+    function updateVseprWorkspace() {
+        if(VSEPR_State.atoms.length === 0) {
+            vseprEmptyState.classList.remove('hidden');
+            vseprLayer.classList.add('hidden');
+            analysisPlaceholder.classList.remove('hidden');
+            analysisContent.classList.add('hidden');
+            return;
+        }
+
+        vseprEmptyState.classList.add('hidden');
+        vseprLayer.classList.remove('hidden');
+        
+        atomsHtml.innerHTML = '';
+        bondsSvg.innerHTML = '';
+
+        if(VSEPR_State.atoms.length === 1) {
+            // Just one atom
+            drawAtom(VSEPR_State.atoms[0], 200, 200, 'w-16 h-16 text-2xl', 'front-atom');
+            analysisPlaceholder.classList.remove('hidden');
+            analysisContent.classList.add('hidden');
+            return;
+        }
+
+        // VSEPR Logic for 2-5 atoms
+        calculateAndDrawVsepr();
+    }
+
+    function calculateAndDrawVsepr() {
+        const atoms = VSEPR_State.atoms;
+        
+        if(atoms.length === 0) {
+            bondsSvg.innerHTML = '';
+            atomsHtml.innerHTML = '';
+            return;
+        }
+
+        bondsSvg.innerHTML = '';
+        atomsHtml.innerHTML = '';
+
+        if(atoms.length === 1) {
+            drawAtom(atoms[0], 200, 200, 'w-16 h-16 text-2xl', 'front-atom');
+            updateVseprAnalysis(atoms[0], [], "Single Atom", "-", "-", 0, 0, false, 0);
+            return;
+        }
+
+        // 1. Identify Backbone Centers (atoms that can form > 1 bond)
+        const centers = atoms.filter(a => getValence(a.atomic_number) > 1);
+        const terminals = atoms.filter(a => getValence(a.atomic_number) <= 1);
+        
+        // If no multi-valent atoms, just take the first one as center (e.g. H2)
+        const finalCenters = centers.length > 0 ? centers : [atoms[0]];
+        const finalTerminals = centers.length > 0 ? terminals : atoms.slice(1);
+
+        const C_X = 200; 
+        const C_Y = 200;
+        const bondLength = 90;
+
+        // 2. Build Backbone (Chain)
+        // Position centers in a zigzag
+        const centerPositions = finalCenters.map((c, i) => {
+            const angle = (i % 2 === 0) ? -0.3 : 0.3; // Zigzag
+            return {
+                x: C_X + (i * bondLength * 1.2) - ((finalCenters.length-1) * bondLength * 0.6),
+                y: C_Y + (i % 2 === 0 ? -20 : 20),
+                depth: 'flat'
+            };
+        });
+
+        // Draw Backbone Bonds
+        for(let i=0; i<finalCenters.length - 1; i++) {
+            drawBond(centerPositions[i].x, centerPositions[i].y, centerPositions[i+1].x, centerPositions[i+1].y, 'flat-bond', 1);
+        }
+
+        // 3. Distribute Terminals among Centers
+        const centerData = finalCenters.map((c, i) => ({
+            el: c,
+            pos: centerPositions[i],
+            ligands: [],
+            maxValence: getValence(c.atomic_number),
+            occupiedValence: (i === 0 || i === finalCenters.length - 1) ? 1 : 2 // accounting for backbone bonds
+        }));
+        if(finalCenters.length === 1) centerData[0].occupiedValence = 0;
+
+        finalTerminals.forEach(t => {
+            // Find center with most available valence
+            let bestCenter = centerData[0];
+            let maxFree = -999;
+            centerData.forEach(cd => {
+                const free = cd.maxValence - cd.occupiedValence;
+                if(free > maxFree) {
+                    maxFree = free;
+                    bestCenter = cd;
+                }
+            });
+            bestCenter.ligands.push(t);
+            bestCenter.occupiedValence += 1;
+        });
+
+        // 4. Draw Everything
+        centerData.forEach((cd, i) => {
+            const { el, pos, ligands } = cd;
+            drawAtom(el, pos.x, pos.y, 'w-14 h-14 text-xl z-20', 'front-atom');
+
+            // Calculate VSEPR-like distribution for ligands around this center
+            const sn = ligands.length + (finalCenters.length > 1 ? (i === 0 || i === finalCenters.length-1 ? 1 : 2) : 0);
+            
+            ligands.forEach((L, li) => {
+                // Offset angles to avoid pointing towards other backbone atoms
+                let baseAngle = (i % 2 === 0) ? Math.PI/2 : -Math.PI/2;
+                const spread = Math.PI * 1.2;
+                const angle = baseAngle + (li - (ligands.length-1)/2) * (spread/Math.max(1, ligands.length));
+                
+                const lx = pos.x + Math.cos(angle) * bondLength;
+                const ly = pos.y + Math.sin(angle) * bondLength;
+                
+                drawAtom(L, lx, ly, 'w-10 h-10 text-base', 'flat-atom');
+                drawBond(pos.x, pos.y, lx, ly, 'flat-bond', 1);
+            });
+        });
+
+        // 5. Analysis (focus on first or most complex center)
+        const primaryCenter = centerData[0];
+        const lonePairs = Math.max(0, Math.floor((primaryCenter.maxValence - primaryCenter.occupiedValence)/2));
+        const sn = primaryCenter.ligands.length + lonePairs + (finalCenters.length > 1 ? 1 : 0);
+        
+        updateVseprAnalysis(
+            primaryCenter.el, 
+            primaryCenter.ligands, 
+            finalCenters.length > 1 ? `Chained (${finalCenters.length} centers)` : "Standard",
+            "-", 
+            "Calculated", 
+            lonePairs, 
+            sn, 
+            primaryCenter.occupiedValence + lonePairs * 2 >= 8, 
+            primaryCenter.occupiedValence*2 + lonePairs*2
+        );
+    }
+
+    // Heuristic: If all ligands are exactly the same element, it's highly symmetric.
+    function checkSymmetry(ligands) {
+        if(ligands.length === 0) return true;
+        const s = ligands[0].symbol;
+        return ligands.every(l => l.symbol === s);
+    }
+
+    // Drawing Primitives
+    function drawAtom(el, x, y, sizeClasses, depthClass = '') {
+        const div = document.createElement('div');
+        
+        // If Lewis mode, draw a large faint valence shell ring around the atom
+        if (VSEPR_State.viewMode === 'lewis') {
+            const shell = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            shell.setAttribute('cx', x);
+            shell.setAttribute('cy', y);
+            shell.setAttribute('r', depthClass.includes('w-16') ? '60' : '45'); // Slightly larger than bond length
+            shell.setAttribute('fill', 'rgba(255, 255, 255, 0.03)');
+            shell.setAttribute('stroke', 'rgba(255, 255, 255, 0.15)');
+            shell.setAttribute('stroke-width', '1');
+            shell.setAttribute('stroke-dasharray', '4 4');
+            bondsSvg.appendChild(shell);
+        }
+        
+        // Color mapping
+        let bgGradient = 'from-slate-600 to-slate-800 border-slate-500'; // Default gray
+        if (el.symbol === 'H') bgGradient = 'from-slate-300 to-slate-500 border-slate-400 text-slate-800'; // White
+        else if (el.symbol === 'C') bgGradient = 'from-zinc-800 to-black border-zinc-700'; // Black
+        else if (el.symbol === 'O') bgGradient = 'from-rose-500 to-red-700 border-rose-400'; // Red
+        else if (el.symbol === 'N') bgGradient = 'from-blue-500 to-indigo-700 border-blue-400'; // Blue
+        else if (el.category.includes('Halogen')) bgGradient = 'from-emerald-400 to-green-600 border-emerald-300'; // Green
+        else if (el.category.includes('Metal')) bgGradient = 'from-yellow-400 to-orange-600 border-yellow-300'; // Metallic
+
+        div.className = `vsepr-atom group border-2 bg-gradient-to-br ${bgGradient} ${sizeClasses} ${depthClass}`;
+        div.style.left = `${x}px`;
+        div.style.top = `${y}px`;
+        
+        div.innerHTML = `
+            <span>${el.symbol}</span>
+            <div class="absolute -top-1 -right-1 bg-rose-500 hover:bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity z-30 shadow-md transform hover:scale-110">✕</div>
+        `;
+        
+        div.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if(el._vseprId) {
+                VSEPR_State.atoms = VSEPR_State.atoms.filter(a => a._vseprId !== el._vseprId);
+                VSEPR_State.moleculeName = null;
+                updateVseprWorkspace();
+            }
+        });
+
+        atomsHtml.appendChild(div);
+    }
+
+    function drawBond(x1, y1, x2, y2, depthClass, order = 1) {
+        if(VSEPR_State.viewMode === 'lewis') return; 
+
+        const drawLine = (offX = 0, offY = 0) => {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1 + offX);
+            line.setAttribute('y1', y1 + offY);
+            line.setAttribute('x2', x2 + offX);
+            line.setAttribute('y2', y2 + offY);
+            line.setAttribute('class', `stroke-slate-400 transition-all duration-300 ${depthClass}`);
+            bondsSvg.appendChild(line);
+        };
+
+        if (order === 1) {
+            drawLine();
+        } else {
+            // Calculate perpendicular offset for multiple lines
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            const px = -dy / len * 4;
+            const py = dx / len * 4;
+
+            if (order === 2) {
+                drawLine(px, py);
+                drawLine(-px, -py);
+            } else if (order === 3) {
+                drawLine(0, 0);
+                drawLine(px*1.5, py*1.5);
+                drawLine(-px*1.5, -py*1.5);
+            }
+        }
+    }
+    
+    function drawLewisDots(cx, cy, lx, ly, order = 1) {
+        // Find midpoint where shells intersect
+        const mx = (cx + lx) / 2;
+        const my = (cy + ly) / 2;
+        
+        // Perpendicular for multiple pairs
+        const dx = lx - cx;
+        const dy = ly - cy;
+        const len = Math.sqrt(dx*dx + dy*dy);
+        const perpX = -dy / len;
+        const perpY = dx / len;
+        
+        const colors = ['#f87171', '#60a5fa'];
+        
+        for (let o = 0; o < order; o++) {
+            const bondOffset = (o - (order-1)/2) * 10;
+            for(let i=0; i<2; i++) {
+                const dir = i === 0 ? -1 : 1;
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', mx + perpX * 4 * dir + (dx/len) * bondOffset); // Spread along bond axis slightly or perpendicular
+                // Actually spread perpendicular to bond axis for multiple pairs
+                const px = mx + perpX * 10 * (o - (order-1)/2);
+                const py = my + perpY * 10 * (o - (order-1)/2);
+
+                circle.setAttribute('cx', px + perpX * 4 * dir);
+                circle.setAttribute('cy', py + perpY * 4 * dir);
+                circle.setAttribute('r', '3');
+                circle.setAttribute('fill', colors[i]);
+                bondsSvg.appendChild(circle);
+            }
+        }
+    }
+    
+    function drawLonePairCloud(cx, cy, index, total, shape) {
+        // Just visual flair - orient clouds in empty space
+        const div = document.createElement('div');
+        div.className = 'vsepr-lone-pair';
+        div.style.left = `${cx}px`;
+        div.style.top = `${cy - 20}px`; // Origin compensation
+        
+        let rotation = 0;
+        if(shape === "Bent" || shape === "Trigonal Pyramidal") {
+            // Point clouds upwards generally
+            rotation = index === 0 ? -30 : 30; 
+        } else {
+            rotation = (360 / total) * index;
+        }
+        
+        div.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) translateY(-25px)`;
+        
+        // Add two dot representations inside the cloud
+        div.innerHTML = `
+            <div class="absolute top-2 left-1/2 transform -translate-x-1/2 flex gap-1">
+                <div class="w-2 h-2 rounded-full bg-blue-300 shadow-[0_0_5px_#93c5fd]"></div>
+                <div class="w-2 h-2 rounded-full bg-blue-300 shadow-[0_0_5px_#93c5fd]"></div>
+            </div>
+        `;
+        atomsHtml.appendChild(div);
+    }
+    
+    function drawLonePairDots(cx, cy, index, total) {
+        let angle = -Math.PI/2 + (index * 0.4); // slightly offset top
+        const dist = 42; // Out on the shell edge
+        
+        const circle1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle1.setAttribute('cx', cx + dist * Math.cos(angle) - 4);
+        circle1.setAttribute('cy', cy + dist * Math.sin(angle));
+        circle1.setAttribute('r', '3');
+        circle1.setAttribute('fill', '#f87171');
+        
+        const circle2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle2.setAttribute('cx', cx + dist * Math.cos(angle) + 4);
+        circle2.setAttribute('cy', cy + dist * Math.sin(angle));
+        circle2.setAttribute('r', '3');
+        circle2.setAttribute('fill', '#f87171');
+        
+        bondsSvg.appendChild(circle1);
+        bondsSvg.appendChild(circle2);
+    }
+
+    // Naming Heuristics 
+    function nameCompound(central, ligands) {
+        // Direct matching for common stuff
+        const formulaMap = {
+            'H2O1': { name: 'Water', state: 'Liquid' },
+            'O2': { name: 'Molecular Oxygen', state: 'Gas' },
+            'C1O2': { name: 'Carbon Dioxide', state: 'Gas' },
+            'N1H3': { name: 'Ammonia', state: 'Gas' },
+            'C1H4': { name: 'Methane', state: 'Gas' },
+            'Na1Cl1': { name: 'Sodium Chloride', state: 'Solid (Crystal)' },
+            'C6H12O6': { name: 'Glucose', state: 'Solid' },
+            'C2H6O1': { name: 'Ethanol', state: 'Liquid' },
+            'H2O4S1': { name: 'Sulfuric Acid', state: 'Liquid' },
+            'H1Cl1': { name: 'Hydrochloric Acid', state: 'Liquid' },
+            'N2': { name: 'Molecular Nitrogen', state: 'Gas' }
+        };
+        
+        // Count elements
+        let counts = {};
+        counts[central.symbol] = 1;
+        ligands.forEach(l => {
+            counts[l.symbol] = (counts[l.symbol] || 0) + 1;
+        });
+        
+        // Construct string (e.g. C1O2)
+        let formulaStr = '';
+        Object.keys(counts).sort().forEach(k => { formulaStr += `${k}${counts[k]}`; });
+
+        if(formulaMap[formulaStr]) {
+            return formulaMap[formulaStr];
+        }
+
+        // Generic Name Generation
+        const prefixes = ['Mono', 'Di', 'Tri', 'Tetra', 'Penta', 'Hexa', 'Hepta', 'Octa', 'Nona', 'Deca'];
+        const keys = Object.keys(counts);
+        
+        // Handle Homonuclear (clusters of same element)
+        if (keys.length === 1) {
+            const sym = keys[0];
+            const el = dbElements.find(e => e.symbol === sym) || { name: sym };
+            if (counts[sym] === 1) return { name: el.name, state: 'Unknown' };
+            const prefix = prefixes[counts[sym] - 1] || `${counts[sym]}-`;
+            return { name: `${prefix}${el.name.toLowerCase()}`, state: 'Unknown' };
+        }
+
+        if(ligands.length > 0 && checkSymmetry(ligands)) {
+            const lig = ligands[0];
+            const prefix = prefixes[ligands.length - 1] || `${ligands.length}-`;
+            let suffix = lig.name.toLowerCase();
+            
+            // Standard IUPAC suffix replacements
+            if (suffix.endsWith('ine')) suffix = suffix.replace(/ine$/, 'ide');
+            else if (suffix.endsWith('ogen')) suffix = suffix.replace(/ogen$/, 'ide');
+            else if (suffix.endsWith('ygen')) suffix = suffix.replace(/ygen$/, 'ide');
+            else if (suffix.endsWith('on')) suffix = suffix.replace(/on$/, 'ide');
+            else if (!suffix.endsWith('ide')) suffix += 'ide';
+            
+            // Hardcode common fixes
+            if(lig.symbol === 'O') suffix = 'oxide';
+            if(lig.symbol === 'H') suffix = 'hydride';
+            if(lig.symbol === 'S') suffix = 'sulfide';
+            
+            let name = `${central.name} ${prefix.toLowerCase()}${suffix}`;
+            
+            // Estimate state based on atoms
+            let totalMass = central.atomic_mass + (lig.atomic_mass * ligands.length);
+            let state = totalMass < 45 ? "Gas" : (totalMass < 150 ? "Liquid" : "Solid");
+            
+            return { name: name, state: state };
+        }
+        
+        return { name: "Complex Compound", state: "Unknown" };
+    }
+
+    function generateFormula(central, ligands) {
+        let counts = {};
+        counts[central.symbol] = 1;
+        ligands.forEach(l => {
+             counts[l.symbol] = (counts[l.symbol] || 0) + 1;
+        });
+        
+        // Sort C, H, then alphabetical (Hill system convention)
+        let order = Object.keys(counts);
+        if(order.includes('C')) {
+            order = order.filter(k => k !== 'C' && k !== 'H').sort();
+            if(counts['H']) order.unshift('H');
+            order.unshift('C');
+        } else {
+            order.sort();
+        }
+        
+        let html = '';
+        order.forEach(k => {
+            html += k;
+            if(counts[k] > 1) html += `<sub>${counts[k]}</sub>`;
+        });
+        return html;
+    }
+
+    function updateVseprAnalysis(centralAtom, ligands, shapeName, bondAngle, polarity, lonePairs, stericNumber, octetSatisfied, electronsAroundCentral) {
+        let { name, state } = nameCompound(centralAtom, ligands);
+        if (VSEPR_State.moleculeName) name = VSEPR_State.moleculeName;
+        
+        document.getElementById('predicted-name').textContent = name;
+        document.getElementById('chemical-formula').innerHTML = generateFormula(centralAtom, ligands);
+        document.getElementById('vsepr-shape').textContent = shapeName;
+        document.getElementById('bond-angle').textContent = bondAngle;
+        
+        const pEl = document.getElementById('molecule-polarity');
+        pEl.textContent = polarity;
+        pEl.className = polarity === 'Polar' ? 'font-bold text-rose-400' : 'font-bold text-emerald-400';
+        
+        document.getElementById('state-matter').textContent = state;
+        
+        let totalVal = getValence(centralAtom.atomic_number);
+        ligands.forEach(l => totalVal += getValence(l.atomic_number));
+        
+        document.getElementById('val-electrons').textContent = totalVal;
+        document.getElementById('bond-pairs').textContent = ligands.length;
+        document.getElementById('lone-pairs').textContent = lonePairs;
+        document.getElementById('steric-num').textContent = stericNumber;
+
+        const octetEl = document.getElementById('octet-status');
+        if (octetSatisfied) {
+            octetEl.textContent = "Satisfied";
+            octetEl.className = "text-emerald-400 font-bold";
+        } else {
+            octetEl.textContent = electronsAroundCentral < 8 ? "Deficient" : "Expanded";
+            octetEl.className = "text-amber-400 font-bold";
+        }
+        
+        let desc = "This molecule follows standard VSEPR geometry principles. ";
+        if(polarity === 'Polar') desc += "Due to asymmetries in the molecular geometry and differences in electronegativity, it possesses a net dipole moment, making it polar and capable of dipole-dipole interactions.";
+        else desc += "Because of its highly symmetric geometry, any individual bond dipoles cancel each other out, resulting in a non-polar molecule dominated by London dispersion forces.";
+        document.getElementById('molecule-description').textContent = desc;
+        
+        analysisPlaceholder.classList.add('hidden');
+        analysisContent.classList.remove('hidden');
+    }
+
+    // ==========================================
+    // MODULE 3: Bond Breaker
+    // ==========================================
+    let breakerState = {
+        activeEnergy: null,
+        progress: 0,
+        isReacting: false,
+        isComplete: false
+    };
+
+    const reactorStatus = document.getElementById('reactor-status');
+    const log = document.getElementById('dissociation-log');
+    const h1 = document.getElementById('h1');
+    const h2 = document.getElementById('h2');
+    const progressFill = document.getElementById('reaction-fill');
+    const progressBar = document.getElementById('reaction-progress-bar');
+
+    function reactorLog(msg) {
+        const div = document.createElement('div');
+        div.textContent = `> ${msg}`;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    const applyElectricity = document.getElementById('apply-electricity');
+    const applyHeat = document.getElementById('apply-heat');
+
+    if (applyElectricity) {
+        applyElectricity.addEventListener('click', () => {
+            if (breakerState.isReacting || breakerState.isComplete) return;
+            startReaction('electricity');
+        });
+    }
+
+    if (applyHeat) {
+        applyHeat.addEventListener('click', () => {
+            if (breakerState.isReacting || breakerState.isComplete) return;
+            reactorLog("Insufficient thermal energy for H2O dissociation via Bunsen burner. Requires higher temperature or electrolysis.");
+        });
+    }
+
+    function startReaction(type) {
+        breakerState.isReacting = true;
+        breakerState.activeEnergy = type;
+        breakerState.progress = 0;
+        
+        reactorStatus.textContent = 'Reacting...';
+        reactorStatus.className = 'px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold border border-blue-500/50 uppercase';
+        progressBar.classList.remove('hidden');
+        
+        reactorLog("Anode/Cathode potential applied...");
+        reactorLog("Overcoming O-H bond dissociation energy (467 kJ/mol)...");
+
+        const interval = setInterval(() => {
+            breakerState.progress += 2;
+            progressFill.style.width = breakerState.progress + '%';
+
+            // Create bubbles
+            createBubble('bubbles-left');
+            createBubble('bubbles-right');
+            createBubble('bubbles-right'); // 2:1 ratio for H2
+
+            if (breakerState.progress === 40) reactorLog("Vibrational energy increasing... Bonds weakening.");
+            if (breakerState.progress === 70) reactorLog("Electron transfer occurring at electrodes.");
+
+            if (breakerState.progress >= 100) {
+                clearInterval(interval);
+                completeReaction();
+            }
+        }, 100);
+    }
+
+    function createBubble(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const bubble = document.createElement('div');
+        const size = Math.random() * 4 + 2;
+        bubble.className = "absolute bottom-0 bg-white/40 rounded-full animate-bubble";
+        bubble.style.left = Math.random() * 100 + '%';
+        bubble.style.width = size + 'px';
+        bubble.style.height = size + 'px';
+        container.appendChild(bubble);
+        setTimeout(() => bubble.remove(), 2000);
+    }
+
+    function completeReaction() {
+        breakerState.isReacting = false;
+        breakerState.isComplete = true;
+        reactorStatus.textContent = 'Decomposed';
+        reactorStatus.className = 'px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/50 uppercase';
+        
+        // Visual dissociation
+        if (h1 && h2) {
+            h1.style.transform = 'translate(-40px, -60px)';
+            h1.style.opacity = '0';
+            h2.style.transform = 'translate(40px, -60px)';
+            h2.style.opacity = '0';
+        }
+        
+        reactorLog("SUCCESS: H2O -> H2 + 1/2 O2");
+        reactorLog("Gaseous Hydrogen and Oxygen collected.");
+        
+        const summary = document.getElementById('reaction-summary');
+        if (summary) {
+            summary.innerHTML = `
+                <div class="space-y-3">
+                    <div class="bg-dark-900 border border-dark-700 p-3 rounded-lg">
+                        <div class="text-[10px] text-slate-500 uppercase mb-1">Reaction Yield</div>
+                        <div class="text-xs text-white">2.0 mol H₂ (Cathode)</div>
+                        <div class="text-xs text-white">1.0 mol O₂ (Anode)</div>
+                    </div>
+                    <div class="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-lg">
+                        <div class="text-[10px] text-emerald-400 font-bold uppercase mb-1">Concept Learned</div>
+                        <p class="text-[10px] text-slate-300 leading-relaxed italic">
+                            By applying 1.23V+ of electrical potential, we forced the non-spontaneous breakdown of water, demonstrating <b>reduction</b> at the cathode and <b>oxidation</b> at the anode.
+                        </p>
+                    </div>
+                    <button onclick="location.reload()" class="w-full py-2 bg-dark-700 hover:bg-dark-600 rounded text-xs text-white transition-colors">Reset Lab</button>
+                </div>
+            `;
+        }
+    }
+
+    function viewStructureInVsepr() {
+        if (!currentCraftingRecipe) return;
+        
+        // 1. Close popup
+        closeCraftingPopup();
+        
+        // 2. Clear VSEPR
+        VSEPR_State.atoms = [];
+        updateVseprWorkspace();
+        
+        // 3. Switch to VSEPR tab
+        tabVsepr.click();
+        
+        // 4. Add ingredients (representative selection, max 10 total atoms)
+        const ingredients = currentCraftingRecipe.ingredients;
+        let totalAdded = 0;
+        const MAX_TOTAL = 10;
+        
+        // Calculate proportional distribution
+        const totalAtomsInRecipe = ingredients.reduce((sum, ing) => sum + ing.qty, 0);
+        
+        ingredients.forEach((ing) => {
+            const el = dbElements.find(e => e.symbol === ing.symbol);
+            if (el) {
+                // Ensure at least 1 atom of each type if space allows
+                let countToDisplay = Math.max(1, Math.round((ing.qty / totalAtomsInRecipe) * MAX_TOTAL));
+                
+                // Cap by recipe quantity
+                countToDisplay = Math.min(countToDisplay, ing.qty);
+                
+                for (let i = 0; i < countToDisplay; i++) {
+                    if (totalAdded < MAX_TOTAL) {
+                        addAtomToVsepr(el, true);
+                        totalAdded++;
+                    }
+                }
+            }
+        });
+
+        // Set name after all atoms added
+        VSEPR_State.moleculeName = currentCraftingRecipe.name;
+        updateVseprWorkspace();
+        
+        // Show alert
+        const notification = document.createElement('div');
+        notification.className = 'fixed bottom-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-xl shadow-2xl z-[100] animate-bounce';
+        notification.innerHTML = `<i class="fas fa-info-circle mr-2"></i> Investigating molecular structure of ${currentCraftingRecipe.name}...`;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
+
+    function closeCraftingPopup() {
+        craftingResult.classList.remove('scale-100', 'opacity-100');
+        craftingResult.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => craftingResult.classList.add('hidden'), 300);
+    }
+
+    // ==========================================
+    // MODULE 2: Macro Materials Crafter
+    // ==========================================
+
+    async function loadRecipesPage(page, category = '', search = '') {
+        currentRecipePage = page;
+        selectedCategory = category;
+        currentSearchQuery = search;
+        
+        recipesList.innerHTML = '<div class="col-span-full py-12 text-center text-gray-500"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading recipes...</div>';
+        
+        let url = `/api/recipes/?page=${page}&limit=20`;
+        if (category) url += `&category=${encodeURIComponent(category)}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        CRAFT_RECIPES = data.results.map(r => {
+            // Formatting ingredients dict slightly for frontend state
+            let ingrs = [];
+            for(let k in r.ingredients) {
+                 ingrs.push({ symbol: k, name: getElementName(k), qty: r.ingredients[k], current: 0 });
+            }
+            r.ingredients = ingrs;
+            return r;
+        });
+        currentRecipePage = page;
+        renderRecipes(data.total_pages);
+    }
+    
+    function getElementName(sym) {
+        const el = dbElements.find(e => e.symbol === sym);
+        return el ? el.name : sym;
+    }
+
+    function renderRecipes(totalPages = 1) {
+        recipesList.innerHTML = '';
+        CRAFT_RECIPES.forEach(recipe => {
+            const div = document.createElement('div');
+            
+            // Check if activated
+            const isSelected = selectedRecipe && selectedRecipe.id === recipe.id;
+            
+            div.className = `p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'bg-amber-500/10 border-amber-500/50' : 'bg-dark-900 border-dark-600 hover:border-amber-500/30 hover:bg-dark-800'}`;
+            
+            div.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <span class="text-2xl mt-1 shrink-0">${recipe.emoji}</span>
+                    <div class="flex-grow">
+                        <h4 class="font-bold text-slate-200 ${isSelected ? 'text-amber-400' : ''}">${recipe.name}</h4>
+                        <p class="text-[11px] text-slate-400 mt-1 leading-snug">${recipe.desc}</p>
+                        <div class="flex flex-wrap gap-1 mt-2">
+                            ${recipe.ingredients.map(ing => `
+                                <span class="text-[10px] px-1.5 rounded bg-dark-700 text-slate-400">${ing.qty} ${ing.symbol}</span>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            div.addEventListener('click', () => {
+                // deep clone to reset progress
+                selectedRecipe = JSON.parse(JSON.stringify(recipe));
+                renderRecipes(totalPages); // update selection ui
+                renderBench(); // load bench
+            });
+            
+            recipesList.appendChild(div);
+        });
+        
+        // Pagination Controls
+        if(totalPages > 1) {
+            const paginator = document.createElement('div');
+            paginator.className = 'flex justify-between items-center mt-4 pt-4 border-t border-dark-700 shrink-0';
+            
+            const prev = document.createElement('button');
+            prev.className = 'px-3 py-1 bg-dark-700 hover:bg-dark-600 rounded text-xs text-slate-300 disabled:opacity-50';
+            prev.innerText = '← Prev';
+            prev.disabled = currentRecipePage <= 1;
+            prev.onclick = () => loadRecipesPage(currentRecipePage - 1, selectedCategory, currentSearchQuery);
+            
+            const info = document.createElement('span');
+            info.className = 'text-xs text-slate-500';
+            info.innerText = `Page ${currentRecipePage} / ${totalPages}`;
+            
+            const next = document.createElement('button');
+            next.className = 'px-3 py-1 bg-dark-700 hover:bg-dark-600 rounded text-xs text-slate-300 disabled:opacity-50';
+            next.innerText = 'Next →';
+            next.disabled = currentRecipePage >= totalPages;
+            next.onclick = () => loadRecipesPage(currentRecipePage + 1, selectedCategory, currentSearchQuery);
+            
+            paginator.appendChild(prev);
+            paginator.appendChild(info);
+            paginator.appendChild(next);
+            
+            recipesList.appendChild(paginator);
+        }
+    }
+
+    function renderBench() {
+        if(!selectedRecipe) return;
+        
+        benchPlaceholder.classList.add('hidden');
+        benchInputs.classList.remove('hidden');
+        
+        // Check completion status
+        let isComplete = true;
+        selectedRecipe.ingredients.forEach(ing => {
+            if(ing.current < ing.qty) isComplete = false;
+        });
+        
+        craftBtn.disabled = !isComplete;
+        
+        if (isComplete) {
+            benchVisual.classList.add('border-amber-500', 'shadow-[0_0_30px_rgba(245,158,11,0.5)_inset]');
+            benchVisual.classList.remove('border-dark-600');
+        } else {
+            benchVisual.classList.remove('border-amber-500', 'shadow-[0_0_30px_rgba(245,158,11,0.5)_inset]');
+            benchVisual.classList.add('border-dark-600');
+        }
+
+        benchInputs.innerHTML = '';
+        
+        // Arrange ingredient circles
+        const total = selectedRecipe.ingredients.length;
+        selectedRecipe.ingredients.forEach((ing, i) => {
+            const node = document.createElement('div');
+            const angle = (Math.PI * 2 / total) * i - (Math.PI / 2); // Start at top
+            const radius = 80;
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+            
+            const isFilled = ing.current >= ing.qty;
+            
+            node.className = `absolute pointer-events-auto cursor-pointer flex flex-col items-center justify-center w-20 h-20 rounded-full border-2 transition-all 
+                ${isFilled ? 'bg-amber-500 text-dark-900 border-amber-400 scale-110 shadow-[0_0_15px_rgba(245,158,11,0.6)]' : 'bg-dark-800 border-dark-500 text-slate-400 hover:border-amber-500 hover:text-white'}`;
+            
+            node.style.left = '50%';
+            node.style.top = '50%';
+            node.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+            
+            node.innerHTML = `
+                <div class="text-[10px] font-bold text-center leading-tight uppercase px-1">${ing.name}</div>
+                <div class="text-base font-black leading-none">${ing.symbol}</div>
+                <div class="text-[9px] mt-1 opacity-90 font-mono">${ing.current} / ${ing.qty} ${ing.qty > 1 ? 'atoms' : 'atom'}</div>
+            `;
+            
+            // Interaction to add ingredients (simulated drag/drop by clicking)
+            node.addEventListener('click', () => {
+                addIngredientAmount(ing);
+            });
+
+            // Drag and Drop target logic
+            node.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                node.classList.add('border-primary', 'bg-primary/20');
+            });
+            
+            node.addEventListener('dragleave', () => {
+                node.classList.remove('border-primary', 'bg-primary/20');
+            });
+
+            node.addEventListener('drop', (e) => {
+                e.preventDefault();
+                node.classList.remove('border-primary', 'bg-primary/20');
+                const droppedData = JSON.parse(e.dataTransfer.getData('application/json'));
+                if(droppedData.symbol === ing.symbol) {
+                    addIngredientAmount(ing);
+                }
+            });
+            
+            benchInputs.appendChild(node);
+        });
+
+        function addIngredientAmount(ing) {
+            if(ing.current < ing.qty) {
+                ing.current++;
+                renderBench();
+            }
+        }
+        
+        // Update popup info
+        document.getElementById('crafted-emoji').textContent = selectedRecipe.emoji;
+        document.getElementById('crafted-name').textContent = selectedRecipe.name;
+        document.getElementById('crafted-desc').textContent = selectedRecipe.desc;
+        
+        // Scientific Explanations based on category/name heuristics
+        let explanation = "This material demonstrates core chemical principles. By combining these specific elements in controlled ratios, we can harness their combined electronegativity and atomic structure for macroscopic uses.";
+        
+        if (selectedRecipe.category === "Medicine") {
+            explanation = "In medical synthesis, the precise arrangement of Carbon, Hydrogen, and other atoms creates specific geometric shapes that can bind to biological receptors, effectively treating pain, inflammation, or infection.";
+        } else if (selectedRecipe.category === "Device Part") {
+            explanation = "Electronic components rely on doping—adding small amounts of other elements to a semiconductor base. This creates P-type and N-type regions, allowing us to control the flow of electrons for logic processing.";
+        } else if (selectedRecipe.id === "battery" || selectedRecipe.name.includes("Battery")) {
+            explanation = "Batteries store energy by utilizing the differing oxidation states of elements. Lithium ions move through the electrolyte, creating a potential difference that powers our world.";
+        } else if (selectedRecipe.category === "Food") {
+            explanation = "Biological organisms break down these complex hydrocarbon structures to release stored chemical energy, which is then used for cellular processes and metabolism.";
+        }
+        
+        document.getElementById('crafted-explanation').textContent = explanation;
+    }
+
+</script>
+{% endblock %}
